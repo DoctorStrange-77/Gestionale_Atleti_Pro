@@ -330,3 +330,6 @@ export const useCalendarEvents = () => {
   }
   return context;
 };
+
+// Alias retrocompatibile per deployment o cache che includono ancora il vecchio import.
+export const useCalendar = useCalendarEvents;
