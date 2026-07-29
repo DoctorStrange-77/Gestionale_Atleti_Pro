@@ -4,6 +4,7 @@ import { NAVIGATION_ITEMS } from '../../data/navigation';
 import { NavIcon } from '../common/NavIcon';
 import { ChevronLeft, ChevronRight, Dumbbell } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useSettings } from '../../context/SettingsContext';
 import { getAllowedTabsForRole, ROLE_DEFINITIONS } from '../../lib/permissions';
 
 interface SidebarProps {
@@ -20,6 +21,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleCollapse,
 }) => {
   const { user } = useAuth();
+  const { settings } = useSettings();
   const allowedTabs = user ? getAllowedTabsForRole(user.role) : [];
   const filteredNavItems = NAVIGATION_ITEMS.filter((item) => allowedTabs.includes(item.id));
 
@@ -33,13 +35,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Brand Header */}
       <div className="h-16 px-4 flex items-center justify-between border-b border-zinc-800/80 shrink-0">
         <div className="flex items-center gap-3 overflow-hidden">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/20 text-zinc-950 font-black">
-            <Dumbbell className="w-5 h-5 stroke-[2.5]" />
-          </div>
+          {settings.logoUrl ? (
+            <img
+              src={settings.logoUrl}
+              alt="Logo"
+              className="w-10 h-10 rounded-xl object-cover shrink-0 border border-zinc-800 shadow-md"
+              onError={(e) => {
+                // Fallback icon on image load error
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
+          ) : (
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-lg text-zinc-950 font-black"
+              style={{ backgroundColor: settings.primaryColor }}
+            >
+              <Dumbbell className="w-5 h-5 stroke-[2.5]" />
+            </div>
+          )}
+
           {!isCollapsed && (
             <div className="flex flex-col min-w-0">
-              <span className="text-sm font-black tracking-wider text-amber-400 truncate">
-                BUILDER ATHLETE
+              <span
+                className="text-sm font-black tracking-wider truncate"
+                style={{ color: settings.primaryColor }}
+              >
+                {settings.businessName || 'BUILDER ATHLETE'}
               </span>
               <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 truncate">
                 {user?.organizationName || 'Doctor Strength'}

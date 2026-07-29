@@ -325,12 +325,22 @@ export interface AthletePayment {
 export interface AthleteDocument {
   id: string;
   athleteId: string;
+  athleteName?: string;
   title: string;
-  type: 'certificato_medico' | 'privacy' | 'regolamento' | 'carta_identita' | 'anamnesi' | 'altro';
+  type?: 'certificato_medico' | 'privacy' | 'regolamento' | 'carta_identita' | 'anamnesi' | 'altro' | string;
+  category?: DocumentCategory;
   expiryDate?: string;
-  status: 'valido' | 'in_scadenza' | 'scaduto' | 'mancante';
+  status?: 'valido' | 'in_scadenza' | 'scaduto' | 'mancante' | string;
   fileUrl?: string;
   uploadedAt?: string;
+  file?: StoredFile;
+  uploadDate?: string;
+  author?: string;
+  authorRole?: string;
+  visibility?: DocumentVisibility;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface AthleteActivity {
@@ -623,23 +633,6 @@ export interface StoredFile {
   path: string; // e.g., 'athletes/ath-1/contratto_marco_rossi.pdf'
 }
 
-export interface AthleteDocument {
-  id: string;
-  athleteId: string;
-  athleteName: string;
-  category: DocumentCategory;
-  title: string;
-  file: StoredFile;
-  uploadDate: string; // YYYY-MM-DD
-  expiryDate?: string; // YYYY-MM-DD
-  author: string; // e.g. "Salvatore Carotenuto"
-  authorRole?: string;
-  visibility: DocumentVisibility;
-  notes?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export type ConsentType =
   | 'Privacy GDPR & Trattamento Dati'
   | 'Uso Immagini & Materiale Fotografico'
@@ -685,6 +678,199 @@ export interface DocumentAlert {
   dueDate?: string;
   actionLabel?: string;
 }
+
+// ----------------------------------------------------------------------
+// COMUNICAZIONI & MESSAGGI TYPES
+// ----------------------------------------------------------------------
+
+export type CommunicationChannel =
+  | 'telefonata'
+  | 'email'
+  | 'WhatsApp'
+  | 'Telegram'
+  | 'Instagram'
+  | 'incontro'
+  | 'videochiamata'
+  | 'altro';
+
+export type CommunicationOutcome =
+  | 'positivo'
+  | 'in_attesa'
+  | 'da_ricontattare'
+  | 'nessuna_risposta'
+  | 'completato'
+  | 'negativo';
+
+export type MessageTemplateCategory =
+  | 'benvenuto'
+  | 'pagamento_in_scadenza'
+  | 'pagamento_scaduto'
+  | 'abbonamento_in_scadenza'
+  | 'rinnovo'
+  | 'documento_mancante'
+  | 'certificato_medico'
+  | 'checkin_non_completato'
+  | 'ringraziamento_pagamento'
+  | 'recupero_inattivo';
+
+export interface MessageTemplate {
+  id: string;
+  category: MessageTemplateCategory;
+  title: string;
+  description: string;
+  defaultChannel: CommunicationChannel;
+  subjectTemplate: string;
+  bodyTemplate: string;
+  isSystem?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CommunicationLog {
+  id: string;
+  athleteId: string;
+  athleteName: string;
+  athletePhone?: string;
+  athleteEmail?: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  channel: CommunicationChannel;
+  author: string; // Autore
+  subject: string; // Oggetto
+  summary: string; // Riepilogo
+  outcome: CommunicationOutcome; // Esito
+  nextAction?: string; // Prossima azione
+  nextContactDate?: string; // Data del prossimo contatto (YYYY-MM-DD)
+  templateCategory?: MessageTemplateCategory | string;
+  messageSent?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExternalInvoice {
+  id: string;
+  numeroFattura: string;
+  dataFattura: string;
+  riferimento: string;
+  documentoAllegato?: string;
+  softwareEsterno: 'Fatture in Cloud' | 'Aruba Fatturazione' | 'Namirial' | 'Danea Easyfatt' | 'Agenzia delle Entrate' | 'Altro' | string;
+  importo?: number;
+  atletaId?: string;
+  atletaNome?: string;
+  paymentId?: string;
+  note?: string;
+  createdAt: string;
+}
+
+export interface SavedReportFilter {
+  id: string;
+  name: string;
+  dateFilter: string;
+  customStartDate?: string;
+  customEndDate?: string;
+  athleteId?: string;
+  coachName?: string;
+  packageName?: string;
+  paymentMethod?: string;
+  status?: string;
+  serviceType?: string;
+  comparePeriod?: boolean;
+  createdAt: string;
+}
+
+export interface ApiIntegrationConfig {
+  whatsappEnabled: boolean;
+  whatsappPhoneNumberId: string;
+  whatsappAccessToken: string;
+  telegramEnabled: boolean;
+  telegramBotToken: string;
+  telegramChatId: string;
+  emailEnabled: boolean;
+  smtpHost: string;
+  smtpPort: number;
+  smtpUser: string;
+  webhookUrl: string;
+  webhookSecret: string;
+}
+
+export interface PaymentMethodSetting {
+  id: string;
+  name: string;
+  code: string;
+  enabled: boolean;
+  notes?: string;
+}
+
+export interface CustomLabelTag {
+  id: string;
+  name: string;
+  color: string;
+  description?: string;
+}
+
+export interface MessageTemplateSetting {
+  id: string;
+  name: string;
+  channel: 'whatsapp' | 'email' | 'sms' | 'app';
+  category: string;
+  subject?: string;
+  body: string;
+}
+
+export interface ReminderRules {
+  expiryNoticeDays: number[];
+  overdueNoticeDays: number[];
+  autoSendWhatsapp: boolean;
+  autoSendEmail: boolean;
+}
+
+export interface PrivacySettings {
+  privacyPolicyText: string;
+  consentRetentionMonths: number;
+  requireMedicalCertificateConsent: boolean;
+  gdprContactEmail: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  userName: string;
+  userRole: string;
+  action: string;
+  details: string;
+  ipAddress?: string;
+}
+
+export interface OrganizationSettings {
+  businessName: string;
+  legalName: string;
+  vatNumber: string;
+  fiscalCode: string;
+  address: string;
+  city: string;
+  postalCode: string;
+  phone: string;
+  email: string;
+  website: string;
+  logoUrl: string;
+  primaryColor: string;
+  secondaryColor: string;
+  currency: string;
+  currencySymbol: string;
+  timezone: string;
+  dateFormat: string;
+  paymentMethods: PaymentMethodSetting[];
+  taskCategories: string[];
+  tags: CustomLabelTag[];
+  reminderRules: ReminderRules;
+  messageTemplates: MessageTemplateSetting[];
+  privacy: PrivacySettings;
+  apiIntegrations: ApiIntegrationConfig;
+}
+
+
+
+
 
 
 

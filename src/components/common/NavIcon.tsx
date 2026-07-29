@@ -2,6 +2,7 @@ import React from 'react';
 import {
   LayoutDashboard,
   Users,
+  User,
   Package,
   CreditCard,
   Euro,
@@ -28,6 +29,8 @@ export const NavIcon: React.FC<NavIconProps> = ({ name, className = 'w-5 h-5' })
       return <LayoutDashboard className={className} />;
     case 'Users':
       return <Users className={className} />;
+    case 'User':
+      return <User className={className} />;
     case 'Package':
       return <Package className={className} />;
     case 'CreditCard':

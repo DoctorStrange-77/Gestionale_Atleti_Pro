@@ -9,6 +9,8 @@ import { RenewalsProvider } from './context/RenewalsContext';
 import { TasksProvider } from './context/TasksContext';
 import { CalendarProvider } from './context/CalendarContext';
 import { DocumentsProvider } from './context/DocumentsContext';
+import { CommunicationsProvider } from './context/CommunicationsContext';
+import { SettingsProvider } from './context/SettingsContext';
 import { RegisterPaymentModal } from './components/payments/RegisterPaymentModal';
 import { ToastContainer } from './components/common/ToastContainer';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
@@ -54,8 +56,12 @@ export default function App() {
                     <TasksProvider>
                       <CalendarProvider>
                         <DocumentsProvider>
-                          <MainContent />
-                          <ToastContainer />
+                          <CommunicationsProvider>
+                            <SettingsProvider>
+                              <MainContent />
+                              <ToastContainer />
+                            </SettingsProvider>
+                          </CommunicationsProvider>
                         </DocumentsProvider>
                       </CalendarProvider>
                     </TasksProvider>

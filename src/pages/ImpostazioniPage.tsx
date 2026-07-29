@@ -1,154 +1,1459 @@
 import React, { useState } from 'react';
-import { Settings, Building2, Key, Database, Globe, Shield, Code, Crown, Eye, EyeOff } from 'lucide-react';
+import {
+  Settings,
+  Building2,
+  Palette,
+  Globe,
+  Clock,
+  Calendar,
+  CreditCard,
+  Package,
+  Layers,
+  Tag,
+  Users,
+  Shield,
+  Key,
+  Bell,
+  MessageSquare,
+  Lock,
+  Download,
+  Share2,
+  History,
+  CheckCircle2,
+  Plus,
+  Trash2,
+  Edit2,
+  Crown,
+  Eye,
+  FileSpreadsheet,
+  FileText,
+  Code,
+  Save,
+  RotateCcw,
+  Sparkles,
+  Search,
+  Check,
+  AlertCircle,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
+import { usePackages } from '../context/PackagesContext';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { ROLE_DEFINITIONS } from '../lib/permissions';
 import { SqlScriptModal } from '../components/sql/SqlScriptModal';
-import { UserRole } from '../types';
+import { UserRole, CustomLabelTag, MessageTemplateSetting, PaymentMethodSetting } from '../types';
+
+type SettingsSectionId =
+  | 'organizzazione'
+  | 'logo'
+  | 'colori'
+  | 'valuta'
+  | 'fuso_orario'
+  | 'formato_data'
+  | 'pacchetti'
+  | 'metodi_pagamento'
+  | 'categorie_attivita'
+  | 'etichette'
+  | 'utenti'
+  | 'ruoli'
+  | 'permessi'
+  | 'regole_promemoria'
+  | 'modelli_messaggi'
+  | 'privacy'
+  | 'esportazione'
+  | 'integrazioni'
+  | 'registro_attivita';
+
+const COLOR_PRESETS = [
+  { name: 'Amber Gold (Predefinito)', primary: '#f59e0b', secondary: '#3b82f6' },
+  { name: 'Emerald Performance', primary: '#10b981', secondary: '#8b5cf6' },
+  { name: 'Crimson Power', primary: '#ef4444', secondary: '#f59e0b' },
+  { name: 'Indigo Elite', primary: '#6366f1', secondary: '#10b981' },
+  { name: 'Cyan Motion', primary: '#06b6d4', secondary: '#ec4899' },
+  { name: 'Purple Luxury', primary: '#8b5cf6', secondary: '#f59e0b' },
+];
 
 export const ImpostazioniPage: React.FC = () => {
-  const { user, organizationName, toggleCoachFinancials } = useAuth();
+  const { user, toggleCoachFinancials, members, inviteMember, updateMemberRole, toggleMemberFinancials } = useAuth();
+  const {
+    settings,
+    auditLogs,
+    updateSettings,
+    updatePaymentMethods,
+    updateTaskCategories,
+    updateTags,
+    updateReminderRules,
+    updateMessageTemplates,
+    updatePrivacySettings,
+    updateApiIntegrations,
+    clearAuditLogs,
+    resetToDefaults,
+  } = useSettings();
+  const { packages } = usePackages();
+
+  const [activeSection, setActiveSection] = useState<SettingsSectionId>('organizzazione');
   const [showSqlModal, setShowSqlModal] = useState(false);
 
+  // Form State for Organization & Branding
+  const [businessName, setBusinessName] = useState(settings.businessName);
+  const [legalName, setLegalName] = useState(settings.legalName);
+  const [vatNumber, setVatNumber] = useState(settings.vatNumber);
+  const [fiscalCode, setFiscalCode] = useState(settings.fiscalCode);
+  const [address, setAddress] = useState(settings.address);
+  const [city, setCity] = useState(settings.city);
+  const [postalCode, setPostalCode] = useState(settings.postalCode);
+  const [phone, setPhone] = useState(settings.phone);
+  const [email, setEmail] = useState(settings.email);
+  const [website, setWebsite] = useState(settings.website);
+  const [logoUrl, setLogoUrl] = useState(settings.logoUrl);
+  const [primaryColor, setPrimaryColor] = useState(settings.primaryColor);
+  const [secondaryColor, setSecondaryColor] = useState(settings.secondaryColor);
+  const [currency, setCurrency] = useState(settings.currency);
+  const [timezone, setTimezone] = useState(settings.timezone);
+  const [dateFormat, setDateFormat] = useState(settings.dateFormat);
+
+  // State for adding new Task Category
+  const [newCategoryName, setNewCategoryName] = useState('');
+
+  // State for adding new Tag
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagColor, setNewTagColor] = useState('#f59e0b');
+  const [newTagDesc, setNewTagDesc] = useState('');
+
+  // State for Invite User Modal
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteName, setInviteName] = useState('');
+  const [inviteRole, setInviteRole] = useState<UserRole>('coach');
+
+  // State for Audit Log search
+  const [logSearchQuery, setLogSearchQuery] = useState('');
+
+  const isOwner = user?.role === 'proprietario' || user?.role === 'amministratore';
+
+  // Save Organization Info
+  const handleSaveOrganization = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateSettings({
+      businessName,
+      legalName,
+      vatNumber,
+      fiscalCode,
+      address,
+      city,
+      postalCode,
+      phone,
+      email,
+      website,
+    });
+  };
+
+  // Save Logo
+  const handleSaveLogo = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateSettings({ logoUrl });
+  };
+
+  // Save Colors (Real-Time Dynamic Graphic Update!)
+  const handleSaveColors = (primary: string, secondary: string) => {
+    setPrimaryColor(primary);
+    setSecondaryColor(secondary);
+    updateSettings({ primaryColor: primary, secondaryColor: secondary });
+  };
+
+  // Save Currency, Timezone & Date Format
+  const handleSaveRegional = () => {
+    let symbol = '€';
+    if (currency === 'USD') symbol = '$';
+    if (currency === 'GBP') symbol = '£';
+    if (currency === 'CHF') symbol = 'CHF';
+
+    updateSettings({
+      currency,
+      currencySymbol: symbol,
+      timezone,
+      dateFormat,
+    });
+  };
+
+  // Task Category handlers
+  const handleAddCategory = () => {
+    if (!newCategoryName.trim()) return;
+    const updated = [...settings.taskCategories, newCategoryName.trim()];
+    updateTaskCategories(updated);
+    setNewCategoryName('');
+  };
+
+  const handleDeleteCategory = (cat: string) => {
+    const updated = settings.taskCategories.filter((c) => c !== cat);
+    updateTaskCategories(updated);
+  };
+
+  // Tag handlers
+  const handleAddTag = () => {
+    if (!newTagName.trim()) return;
+    const newTag: CustomLabelTag = {
+      id: `tag-${Date.now()}`,
+      name: newTagName.trim(),
+      color: newTagColor,
+      description: newTagDesc.trim(),
+    };
+    updateTags([...settings.tags, newTag]);
+    setNewTagName('');
+    setNewTagDesc('');
+  };
+
+  const handleDeleteTag = (id: string) => {
+    updateTags(settings.tags.filter((t) => t.id !== id));
+  };
+
+  // Payment Method toggle
+  const handleTogglePaymentMethod = (id: string) => {
+    const updated = settings.paymentMethods.map((pm) =>
+      pm.id === id ? { ...pm, enabled: !pm.enabled } : pm
+    );
+    updatePaymentMethods(updated);
+  };
+
+  // Invite user submit
+  const handleInviteSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteEmail.trim() || !inviteName.trim()) return;
+    inviteMember(inviteEmail, inviteName, inviteRole);
+    setInviteEmail('');
+    setInviteName('');
+    setIsInviteModalOpen(false);
+  };
+
+  // Export full JSON database
+  const handleExportFullJson = () => {
+    const fullBackup = {
+      exportedAt: new Date().toISOString(),
+      organization: settings,
+      members,
+      packages,
+      auditLogs,
+    };
+    const blob = new Blob([JSON.stringify(fullBackup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `backup_${settings.businessName.toLowerCase().replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+  };
+
+  // Filter audit logs
+  const filteredAuditLogs = auditLogs.filter(
+    (log) =>
+      log.action.toLowerCase().includes(logSearchQuery.toLowerCase()) ||
+      log.details.toLowerCase().includes(logSearchQuery.toLowerCase()) ||
+      log.userName.toLowerCase().includes(logSearchQuery.toLowerCase())
+  );
+
+  const SECTIONS_CONFIG: { id: SettingsSectionId; label: string; icon: React.ReactNode; category: string }[] = [
+    { id: 'organizzazione', label: '1. Dati Organizzazione', icon: <Building2 className="w-4 h-4" />, category: 'Generale' },
+    { id: 'logo', label: '2. Logo Aziendale', icon: <Building2 className="w-4 h-4 text-amber-400" />, category: 'Generale' },
+    { id: 'colori', label: '3. Colori & Branding Live', icon: <Palette className="w-4 h-4 text-purple-400" />, category: 'Generale' },
+    { id: 'valuta', label: '4. Valuta', icon: <Globe className="w-4 h-4 text-emerald-400" />, category: 'Generale' },
+    { id: 'fuso_orario', label: '5. Fuso Orario', icon: <Clock className="w-4 h-4 text-blue-400" />, category: 'Generale' },
+    { id: 'formato_data', label: '6. Formato Data', icon: <Calendar className="w-4 h-4 text-amber-400" />, category: 'Generale' },
+
+    { id: 'pacchetti', label: '7. Pacchetti Offered', icon: <Package className="w-4 h-4 text-purple-400" />, category: 'Listini & Tag' },
+    { id: 'metodi_pagamento', label: '8. Metodi di Pagamento', icon: <CreditCard className="w-4 h-4 text-emerald-400" />, category: 'Listini & Tag' },
+    { id: 'categorie_attivita', label: '9. Categorie Attività', icon: <Layers className="w-4 h-4 text-indigo-400" />, category: 'Listini & Tag' },
+    { id: 'etichette', label: '10. Etichette & Tag Atleti', icon: <Tag className="w-4 h-4 text-amber-400" />, category: 'Listini & Tag' },
+
+    { id: 'utenti', label: '11. Utenti & Team', icon: <Users className="w-4 h-4 text-blue-400" />, category: 'Team & Permessi' },
+    { id: 'ruoli', label: '12. Ruoli Definizione', icon: <Shield className="w-4 h-4 text-amber-400" />, category: 'Team & Permessi' },
+    { id: 'permessi', label: '13. Permessi & Economia Coach', icon: <Key className="w-4 h-4 text-emerald-400" />, category: 'Team & Permessi' },
+
+    { id: 'regole_promemoria', label: '14. Regole Promemoria', icon: <Bell className="w-4 h-4 text-amber-400" />, category: 'Notifiche & API' },
+    { id: 'modelli_messaggi', label: '15. Modelli dei Messaggi', icon: <MessageSquare className="w-4 h-4 text-indigo-400" />, category: 'Notifiche & API' },
+    { id: 'integrazioni', label: '18. Integrazioni & Webhook', icon: <Share2 className="w-4 h-4 text-purple-400" />, category: 'Notifiche & API' },
+
+    { id: 'privacy', label: '16. Privacy & GDPR', icon: <Lock className="w-4 h-4 text-red-400" />, category: 'Sicurezza & Dati' },
+    { id: 'esportazione', label: '17. Esportazione Dati & Backup', icon: <Download className="w-4 h-4 text-emerald-400" />, category: 'Sicurezza & Dati' },
+    { id: 'registro_attivita', label: '19. Registro Attività (Audit Log)', icon: <History className="w-4 h-4 text-blue-400" />, category: 'Sicurezza & Dati' },
+  ];
+
   return (
-    <div className="space-y-6 max-w-4xl">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      {/* Top Header */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-5 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl">
         <div>
           <h2 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
             <Settings className="w-5 h-5 text-amber-400" />
-            <span>Impostazioni Organizzazione & Multi-Tenant</span>
+            <span>Pannello Impostazioni & Personalizzazione Grafica</span>
           </h2>
           <p className="text-xs text-zinc-400 mt-0.5">
-            Parametri dell'organizzazione, ruoli, permessi e script SQL Supabase.
+            Configurazione completa dei 19 moduli gestionali, branding live, ruoli e parametri contabili.
           </p>
         </div>
 
-        <button
-          onClick={() => setShowSqlModal(true)}
-          className="px-3.5 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 rounded-xl text-xs font-bold transition-all flex items-center gap-2"
-        >
-          <Code className="w-4 h-4" />
-          <span>Visualizza Query SQL & RLS</span>
-        </button>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setShowSqlModal(true)}
+            className="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-xl text-xs font-bold transition-all flex items-center gap-2"
+          >
+            <Code className="w-4 h-4 text-amber-400" />
+            <span>SQL Supabase</span>
+          </button>
+
+          <button
+            onClick={resetToDefaults}
+            className="px-3.5 py-2 bg-zinc-950 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-800 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5"
+            title="Ripristina valori di fabbrica"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Ripristina Definiti</span>
+          </button>
+        </div>
       </div>
 
-      <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6 space-y-6 shadow-xl">
-        {/* Organization Info */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-bold text-zinc-100 flex items-center gap-2 border-b border-zinc-800 pb-2">
-            <Building2 className="w-4 h-4 text-amber-400" />
-            <span>Dettagli Organizzazione Attiva</span>
-          </h3>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-semibold text-zinc-400">Nome Attività / Centro</label>
-              <input
-                type="text"
-                readOnly
-                value={organizationName}
-                className="w-full mt-1 px-3.5 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-zinc-200 font-semibold"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-zinc-400">ID Organizzazione (Multi-Tenant ID)</label>
-              <input
-                type="text"
-                readOnly
-                value={user?.organizationId || 'org-doctor-strength'}
-                className="w-full mt-1 px-3.5 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-amber-400 font-mono"
-              />
-            </div>
+      {/* Main Grid: Left Sidebar Tabs (19 Sections) + Right Content View */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Left Vertical Section Selector */}
+        <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 rounded-2xl p-3 shadow-xl space-y-4 h-fit">
+          <div className="px-2 pt-1 pb-2 border-b border-zinc-800 flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
+              19 Sezioni Gestionali
+            </span>
+            <span className="text-[10px] font-bold bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-full border border-amber-500/30">
+              19 / 19
+            </span>
           </div>
-        </div>
 
-        {/* Roles & Permissions Matrix */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-bold text-zinc-100 flex items-center gap-2 border-b border-zinc-800 pb-2">
-            <Shield className="w-4 h-4 text-amber-400" />
-            <span>Matrice Ruoli & Permessi Predefiniti</span>
-          </h3>
-
-          <div className="grid grid-cols-1 gap-2.5">
-            {(Object.keys(ROLE_DEFINITIONS) as UserRole[]).map((rKey) => {
-              const rDef = ROLE_DEFINITIONS[rKey];
+          <div className="space-y-1 max-h-[70vh] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-zinc-800">
+            {SECTIONS_CONFIG.map((sec) => {
+              const isActive = activeSection === sec.id;
               return (
-                <div
-                  key={rKey}
-                  className="p-3.5 bg-zinc-900/80 border border-zinc-800 rounded-xl flex items-start justify-between gap-3 text-xs"
+                <button
+                  key={sec.id}
+                  onClick={() => setActiveSection(sec.id)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
+                    isActive
+                      ? 'bg-amber-500 text-zinc-950 font-bold shadow-lg shadow-amber-500/20'
+                      : 'text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100'
+                  }`}
                 >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-0.5 rounded-md border font-bold text-[11px] ${rDef.badgeColor}`}>
-                        {rDef.name}
-                      </span>
-                      {rKey === 'proprietario' && (
-                        <span className="text-[10px] text-amber-400 font-semibold flex items-center gap-1">
-                          <Crown className="w-3 h-3" /> Accesso Totale & Trasferimento Proprietario
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-zinc-300 text-[11px]">{rDef.description}</p>
-                  </div>
-                </div>
+                  <span className={isActive ? 'text-zinc-950' : 'text-zinc-400'}>
+                    {sec.icon}
+                  </span>
+                  <span className="truncate flex-1">{sec.label}</span>
+                </button>
               );
             })}
           </div>
         </div>
 
-        {/* Coach Financial Settings */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-bold text-zinc-100 flex items-center gap-2 border-b border-zinc-800 pb-2">
-            <Eye className="w-4 h-4 text-amber-400" />
-            <span>Impostazione Dati Economici per il Ruolo Coach</span>
-          </h3>
+        {/* Right Active View Card */}
+        <div className="lg:col-span-3 bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-6">
+          {/* 1. DATI ORGANIZZAZIONE */}
+          {activeSection === 'organizzazione' && (
+            <form onSubmit={handleSaveOrganization} className="space-y-6">
+              <div className="border-b border-zinc-800 pb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+                    <Building2 className="w-5 h-5 text-amber-400" />
+                    <span>1. Dati dell'Organizzazione e dell'Attività</span>
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Informazioni fiscali, indirizzo e dati di contatto mostrati nelle ricevute e nei contratti.
+                  </p>
+                </div>
+                {isOwner && (
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-lg shadow-amber-500/10"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Salva Dati</span>
+                  </button>
+                )}
+              </div>
 
-          <div className="p-4 bg-zinc-900/80 border border-zinc-800 rounded-xl flex items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-bold text-zinc-200">Visibilità Dati Economici per Coach</p>
-              <p className="text-[11px] text-zinc-400 mt-0.5">
-                Se abilitato, i Coach potranno visualizzare gli importi dei pagamenti, pacchetti e il fatturato relativo ai propri atleti.
-              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label className="block text-zinc-400 font-semibold mb-1">
+                    Nome dell'Attività / Performance Center *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    disabled={!isOwner}
+                    value={businessName}
+                    onChange={(e) => setBusinessName(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-200 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 font-semibold mb-1">
+                    Ragione Sociale Completa *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    disabled={!isOwner}
+                    value={legalName}
+                    onChange={(e) => setLegalName(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-200 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 font-semibold mb-1">Partita IVA</label>
+                  <input
+                    type="text"
+                    disabled={!isOwner}
+                    value={vatNumber}
+                    onChange={(e) => setVatNumber(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-200 focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 font-semibold mb-1">Codice Fiscale</label>
+                  <input
+                    type="text"
+                    disabled={!isOwner}
+                    value={fiscalCode}
+                    onChange={(e) => setFiscalCode(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-200 focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-zinc-400 font-semibold mb-1">Indirizzo Sede Operativa</label>
+                  <input
+                    type="text"
+                    disabled={!isOwner}
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-200 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 font-semibold mb-1">Città</label>
+                  <input
+                    type="text"
+                    disabled={!isOwner}
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-200 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 font-semibold mb-1">CAP</label>
+                  <input
+                    type="text"
+                    disabled={!isOwner}
+                    value={postalCode}
+                    onChange={(e) => setPostalCode(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-200 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 font-semibold mb-1">Telefono / WhatsApp Sede</label>
+                  <input
+                    type="text"
+                    disabled={!isOwner}
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-200 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 font-semibold mb-1">Email Ufficiale / Contabilità</label>
+                  <input
+                    type="email"
+                    disabled={!isOwner}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-200 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-zinc-400 font-semibold mb-1">Sito Web Ufficiale</label>
+                  <input
+                    type="url"
+                    disabled={!isOwner}
+                    value={website}
+                    onChange={(e) => setWebsite(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-200 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+            </form>
+          )}
+
+          {/* 2. LOGO */}
+          {activeSection === 'logo' && (
+            <form onSubmit={handleSaveLogo} className="space-y-6">
+              <div className="border-b border-zinc-800 pb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+                    <Building2 className="w-5 h-5 text-amber-400" />
+                    <span>2. Logo Aziendale e Icona Brand</span>
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Il logo viene mostrato in alto nel menu laterale, nelle ricevute di pagamento e nelle schede atletiche.
+                  </p>
+                </div>
+                {isOwner && (
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold rounded-xl text-xs transition-all flex items-center gap-1.5"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Aggiorna Logo</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                {/* Logo Preview Box */}
+                <div className="p-6 bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col items-center justify-center space-y-3">
+                  <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
+                    Anteprima Visuale Logo
+                  </span>
+
+                  {logoUrl ? (
+                    <img
+                      src={logoUrl}
+                      alt="Logo Anteprima"
+                      className="w-24 h-24 rounded-2xl object-cover border-2 border-amber-500/50 shadow-2xl"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-24 h-24 rounded-2xl bg-amber-500 flex items-center justify-center text-zinc-950 font-black text-2xl shadow-xl">
+                      DS
+                    </div>
+                  )}
+
+                  <span className="text-xs text-zinc-500 font-mono truncate max-w-xs">
+                    {logoUrl || 'Nessun URL logo impostato'}
+                  </span>
+                </div>
+
+                {/* Logo Input */}
+                <div className="space-y-4 text-xs">
+                  <div>
+                    <label className="block text-zinc-300 font-semibold mb-1">
+                      URL del Logo (Link Immagine PNG/JPG/SVG)
+                    </label>
+                    <input
+                      type="url"
+                      disabled={!isOwner}
+                      value={logoUrl}
+                      onChange={(e) => setLogoUrl(e.target.value)}
+                      placeholder="https://images.unsplash.com/photo-..."
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-200 focus:outline-none focus:border-amber-500 font-mono text-xs"
+                    />
+                  </div>
+
+                  <p className="text-[11px] text-zinc-400 leading-relaxed">
+                    Puoi inserire qualsiasi URL immagine di alta qualità. Si raccomanda un'immagine quadrata con sfondo trasparente o scuro (minimo 200x200px).
+                  </p>
+                </div>
+              </div>
+            </form>
+          )}
+
+          {/* 3. COLORI & BRANDING LIVE */}
+          {activeSection === 'colori' && (
+            <div className="space-y-6">
+              <div className="border-b border-zinc-800 pb-3">
+                <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+                  <Palette className="w-5 h-5 text-amber-400" />
+                  <span>3. Colori dell'Interfaccia & Dynamic Live Branding</span>
+                </h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Seleziona il colore principale e secondario. L'intera interfaccia dell'applicazione si aggiornerà istantaneamente!
+                </p>
+              </div>
+
+              {/* Color Presets */}
+              <div className="space-y-3">
+                <label className="text-xs font-bold text-zinc-300 uppercase tracking-wider block">
+                  Palette Cromatiche Predefinite
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {COLOR_PRESETS.map((preset) => {
+                    const isSelected =
+                      primaryColor.toLowerCase() === preset.primary.toLowerCase() &&
+                      secondaryColor.toLowerCase() === preset.secondary.toLowerCase();
+
+                    return (
+                      <button
+                        key={preset.name}
+                        onClick={() => handleSaveColors(preset.primary, preset.secondary)}
+                        className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between ${
+                          isSelected
+                            ? 'bg-zinc-800 border-amber-500 ring-1 ring-amber-500'
+                            : 'bg-zinc-950 border-zinc-800 hover:border-zinc-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="flex items-center -space-x-1">
+                            <span
+                              className="w-4 h-4 rounded-full border border-black/50"
+                              style={{ backgroundColor: preset.primary }}
+                            />
+                            <span
+                              className="w-4 h-4 rounded-full border border-black/50"
+                              style={{ backgroundColor: preset.secondary }}
+                            />
+                          </div>
+                          <span className="text-xs font-semibold text-zinc-200">
+                            {preset.name}
+                          </span>
+                        </div>
+                        {isSelected && <Check className="w-4 h-4 text-amber-400" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Custom Color Pickers */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                <div className="p-4 bg-zinc-950 border border-zinc-800 rounded-xl space-y-2">
+                  <label className="text-xs font-semibold text-zinc-300 block">
+                    Colore Principale (Primary Accent)
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      disabled={!isOwner}
+                      value={primaryColor}
+                      onChange={(e) => handleSaveColors(e.target.value, secondaryColor)}
+                      className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-none"
+                    />
+                    <input
+                      type="text"
+                      disabled={!isOwner}
+                      value={primaryColor}
+                      onChange={(e) => handleSaveColors(e.target.value, secondaryColor)}
+                      className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-200 font-mono uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-4 bg-zinc-950 border border-zinc-800 rounded-xl space-y-2">
+                  <label className="text-xs font-semibold text-zinc-300 block">
+                    Colore Secondario (Secondary Highlight)
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      disabled={!isOwner}
+                      value={secondaryColor}
+                      onChange={(e) => handleSaveColors(primaryColor, e.target.value)}
+                      className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-none"
+                    />
+                    <input
+                      type="text"
+                      disabled={!isOwner}
+                      value={secondaryColor}
+                      onChange={(e) => handleSaveColors(primaryColor, e.target.value)}
+                      className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-200 font-mono uppercase"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Live Preview Widget */}
+              <div className="p-5 bg-zinc-950 border border-zinc-800 rounded-2xl space-y-3">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 block">
+                  Anteprima Live Componenti
+                </span>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-zinc-950 shadow-lg"
+                    style={{ backgroundColor: primaryColor }}
+                  >
+                    Pulsante Principale
+                  </button>
+
+                  <button
+                    className="px-4 py-2 rounded-xl text-xs font-bold border"
+                    style={{
+                      borderColor: primaryColor,
+                      color: primaryColor,
+                      backgroundColor: `${primaryColor}15`,
+                    }}
+                  >
+                    Pulsante Outline
+                  </button>
+
+                  <span
+                    className="px-3 py-1 rounded-full text-xs font-bold"
+                    style={{ backgroundColor: `${secondaryColor}25`, color: secondaryColor }}
+                  >
+                    Badge In evidenza
+                  </span>
+                </div>
+              </div>
             </div>
-            <button
-              onClick={() => toggleCoachFinancials()}
-              className={`px-3 py-1.5 rounded-xl border font-bold text-xs shrink-0 transition-all ${
-                user?.canViewFinancials
-                  ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
-                  : 'bg-zinc-800 text-zinc-300 border-zinc-700'
-              }`}
-            >
-              {user?.canViewFinancials ? 'Abilitato' : 'Disabilitato'}
-            </button>
-          </div>
-        </div>
+          )}
 
-        {/* Supabase Connection */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-bold text-zinc-100 flex items-center gap-2 border-b border-zinc-800 pb-2">
-            <Database className="w-4 h-4 text-amber-400" />
-            <span>Database PostgreSQL & Supabase Status</span>
-          </h3>
+          {/* 4. VALUTA */}
+          {activeSection === 'valuta' && (
+            <div className="space-y-6">
+              <div className="border-b border-zinc-800 pb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+                    <Globe className="w-5 h-5 text-emerald-400" />
+                    <span>4. Valuta Predefinita di Sistema</span>
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Definisci la valuta usata nei calcoli contabili, pacchetti e report commerciali.
+                  </p>
+                </div>
+                {isOwner && (
+                  <button
+                    onClick={handleSaveRegional}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold rounded-xl text-xs"
+                  >
+                    Salva Valuta
+                  </button>
+                )}
+              </div>
 
-          <div className="p-4 bg-zinc-900/80 border border-zinc-800 rounded-xl space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-zinc-200">Stato Connessione Supabase</span>
-              <span
-                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                  isSupabaseConfigured
-                    ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                    : 'bg-amber-950 text-amber-400 border border-amber-800'
-                }`}
-              >
-                {isSupabaseConfigured ? 'Connesso' : 'Modalità Demo Attiva'}
-              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label className="block text-zinc-400 font-semibold mb-1">Valuta Principale</label>
+                  <select
+                    disabled={!isOwner}
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-200 focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="EUR">Euro (€ - EUR)</option>
+                    <option value="USD">Dollaro Statunitense ($ - USD)</option>
+                    <option value="GBP">Sterlina Britannica (£ - GBP)</option>
+                    <option value="CHF">Franco Svizzero (CHF)</option>
+                  </select>
+                </div>
+              </div>
             </div>
-            <p className="text-xs text-zinc-400">
-              Per isolare le organizzazioni in produzione con Row Level Security (RLS), esegui lo script SQL disponibile dal pulsante "Visualizza Query SQL & RLS" nell'Editor SQL di Supabase.
-            </p>
-          </div>
+          )}
+
+          {/* 5. FUSO ORARIO */}
+          {activeSection === 'fuso_orario' && (
+            <div className="space-y-6">
+              <div className="border-b border-zinc-800 pb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-blue-400" />
+                    <span>5. Fuso Orario del Centro</span>
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Garantisce che gli orari delle lezioni, scadenze e notifiche siano sincronizzati.
+                  </p>
+                </div>
+                {isOwner && (
+                  <button
+                    onClick={handleSaveRegional}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold rounded-xl text-xs"
+                  >
+                    Salva Fuso Orario
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label className="block text-zinc-400 font-semibold mb-1">Timezone / Fuso Orario</label>
+                  <select
+                    disabled={!isOwner}
+                    value={timezone}
+                    onChange={(e) => setTimezone(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-200 focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="Europe/Rome">Europe/Rome (GMT+1 / Central Europe)</option>
+                    <option value="Europe/London">Europe/London (GMT+0 / UK)</option>
+                    <option value="America/New_York">America/New_York (GMT-5 / Eastern Time)</option>
+                    <option value="Asia/Tokyo">Asia/Tokyo (GMT+9 / Japan)</option>
+                    <option value="UTC">UTC (Universal Coordinated Time)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 6. FORMATO DATA */}
+          {activeSection === 'formato_data' && (
+            <div className="space-y-6">
+              <div className="border-b border-zinc-800 pb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-amber-400" />
+                    <span>6. Formato di Visualizzazione Date</span>
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Seleziona lo stile di visualizzazione delle date nelle tabelle e nei report.
+                  </p>
+                </div>
+                {isOwner && (
+                  <button
+                    onClick={handleSaveRegional}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold rounded-xl text-xs"
+                  >
+                    Salva Formato
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label className="block text-zinc-400 font-semibold mb-1">Formato Data</label>
+                  <select
+                    disabled={!isOwner}
+                    value={dateFormat}
+                    onChange={(e) => setDateFormat(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-200 focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="DD/MM/YYYY">DD/MM/YYYY (es. 29/07/2026 - Standard Italiano)</option>
+                    <option value="YYYY-MM-DD">YYYY-MM-DD (es. 2026-07-29 - Standard ISO)</option>
+                    <option value="MM/DD/YYYY">MM/DD/YYYY (es. 07/29/2026 - US Format)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 7. PACCHETTI */}
+          {activeSection === 'pacchetti' && (
+            <div className="space-y-6">
+              <div className="border-b border-zinc-800 pb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+                    <Package className="w-5 h-5 text-purple-400" />
+                    <span>7. Listino Pacchetti e Offerte Attive ({packages.length})</span>
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Visualizzazione e configurazione sintetica dei pacchetti caricati a sistema.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {packages.map((pkg) => (
+                  <div
+                    key={pkg.id}
+                    className="p-4 bg-zinc-950 border border-zinc-800 rounded-xl space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-zinc-200">{pkg.name}</span>
+                      <span className="text-xs font-mono font-bold text-amber-400">
+                        € {pkg.price}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-zinc-400 line-clamp-2">{pkg.description}</p>
+                    <span className="text-[10px] text-zinc-500 font-mono block">
+                      Durata: {pkg.durationMonths} Mesi | Crediti: {pkg.entriesCount || 'Illimitati'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 8. METODI DI PAGAMENTO */}
+          {activeSection === 'metodi_pagamento' && (
+            <div className="space-y-6">
+              <div className="border-b border-zinc-800 pb-3">
+                <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-emerald-400" />
+                  <span>8. Metodi di Pagamento Abilitati</span>
+                </h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Attiva o disattiva i canali di pagamento selezionabili durante la registrazione di incassi.
+                </p>
+              </div>
+
+              <div className="space-y-2.5">
+                {settings.paymentMethods.map((pm) => (
+                  <div
+                    key={pm.id}
+                    className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-xl flex items-center justify-between gap-4 text-xs"
+                  >
+                    <div>
+                      <span className="font-bold text-zinc-200 block">{pm.name}</span>
+                      <span className="text-[11px] text-zinc-400">{pm.notes}</span>
+                    </div>
+
+                    <button
+                      disabled={!isOwner}
+                      onClick={() => handleTogglePaymentMethod(pm.id)}
+                      className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+                        pm.enabled
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                          : 'bg-zinc-900 text-zinc-500 border-zinc-800'
+                      }`}
+                    >
+                      {pm.enabled ? 'Abilitato' : 'Disabilitato'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 9. CATEGORIE ATTIVITA */}
+          {activeSection === 'categorie_attivita' && (
+            <div className="space-y-6">
+              <div className="border-b border-zinc-800 pb-3">
+                <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-indigo-400" />
+                  <span>9. Categorie per Task e Attività</span>
+                </h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Personalizza le tipologie di task assegnabili al team e ai coach.
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder="Nuova Categoria (es. Test Lattato)..."
+                  className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-amber-500"
+                />
+                <button
+                  onClick={handleAddCategory}
+                  className="px-4 py-2 bg-amber-500 text-zinc-950 font-bold rounded-xl text-xs hover:bg-amber-600"
+                >
+                  Aggiungi
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {settings.taskCategories.map((cat) => (
+                  <div
+                    key={cat}
+                    className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl flex items-center justify-between"
+                  >
+                    <span className="font-semibold text-zinc-200">{cat}</span>
+                    <button
+                      onClick={() => handleDeleteCategory(cat)}
+                      className="text-zinc-500 hover:text-red-400 p-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 10. ETICHETTE & TAG ATLETI */}
+          {activeSection === 'etichette' && (
+            <div className="space-y-6">
+              <div className="border-b border-zinc-800 pb-3">
+                <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+                  <Tag className="w-5 h-5 text-amber-400" />
+                  <span>10. Etichette e Tag Personalizzati Atleti</span>
+                </h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Crea tag con colore e descrizione per categorizzare e filtrare gli iscritti.
+                </p>
+              </div>
+
+              {/* Add Tag Form */}
+              <div className="p-4 bg-zinc-950 border border-zinc-800 rounded-xl space-y-3 text-xs">
+                <span className="font-bold text-zinc-200 block">Crea Nuova Etichetta</span>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <input
+                    type="text"
+                    value={newTagName}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                    placeholder="Nome Tag (es. Elite Athlete)..."
+                    className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-200 focus:outline-none focus:border-amber-500"
+                  />
+                  <input
+                    type="text"
+                    value={newTagDesc}
+                    onChange={(e) => setNewTagDesc(e.target.value)}
+                    placeholder="Descrizione sintetica..."
+                    className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-200 focus:outline-none focus:border-amber-500"
+                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={newTagColor}
+                      onChange={(e) => setNewTagColor(e.target.value)}
+                      className="w-9 h-9 rounded-lg bg-transparent cursor-pointer"
+                    />
+                    <button
+                      onClick={handleAddTag}
+                      className="flex-1 py-2 bg-amber-500 text-zinc-950 font-bold rounded-xl hover:bg-amber-600"
+                    >
+                      Aggiungi Tag
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tag List */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                {settings.tags.map((tag) => (
+                  <div
+                    key={tag.id}
+                    className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-xl flex items-start justify-between gap-3"
+                  >
+                    <div>
+                      <span
+                        className="inline-block px-2.5 py-0.5 rounded-md text-xs font-bold text-zinc-950 mb-1"
+                        style={{ backgroundColor: tag.color }}
+                      >
+                        {tag.name}
+                      </span>
+                      <p className="text-[11px] text-zinc-400">{tag.description || 'Nessuna descrizione'}</p>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteTag(tag.id)}
+                      className="text-zinc-500 hover:text-red-400 p-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 11. UTENTI & TEAM */}
+          {activeSection === 'utenti' && (
+            <div className="space-y-6">
+              <div className="border-b border-zinc-800 pb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+                    <Users className="w-5 h-5 text-blue-400" />
+                    <span>11. Gestione Utenti e Team ({members.length})</span>
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Elenco dei collaboratori dell'organizzazione e relativi ruoli attivi.
+                  </p>
+                </div>
+                {isOwner && (
+                  <button
+                    onClick={() => setIsInviteModalOpen(true)}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold rounded-xl text-xs flex items-center gap-1.5"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Invita Collaboratore</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="divide-y divide-zinc-800 text-xs">
+                {members.map((m) => (
+                  <div key={m.id} className="py-3 flex items-center justify-between gap-4">
+                    <div>
+                      <span className="font-bold text-zinc-200 block">{m.userFullName}</span>
+                      <span className="text-[11px] text-zinc-500">{m.userEmail}</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <select
+                        disabled={!isOwner || m.roleCode === 'proprietario'}
+                        value={m.roleCode}
+                        onChange={(e) => updateMemberRole(m.id, e.target.value as UserRole)}
+                        className="bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-zinc-200 focus:outline-none focus:border-amber-500"
+                      >
+                        {(Object.keys(ROLE_DEFINITIONS) as UserRole[]).map((rKey) => (
+                          <option key={rKey} value={rKey}>
+                            {ROLE_DEFINITIONS[rKey].name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 12. RUOLI DEFINIZIONE */}
+          {activeSection === 'ruoli' && (
+            <div className="space-y-6">
+              <div className="border-b border-zinc-800 pb-3">
+                <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-amber-400" />
+                  <span>12. Definizione e Gerarchia Ruoli</span>
+                </h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Panoramica delle mansioni previste dal sistema di permessi.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 text-xs">
+                {(Object.keys(ROLE_DEFINITIONS) as UserRole[]).map((rKey) => {
+                  const rDef = ROLE_DEFINITIONS[rKey];
+                  return (
+                    <div
+                      key={rKey}
+                      className="p-4 bg-zinc-950 border border-zinc-800 rounded-xl space-y-1"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded-md font-bold ${rDef.badgeColor}`}>
+                          {rDef.name}
+                        </span>
+                        {rKey === 'proprietario' && (
+                          <span className="text-amber-400 font-bold flex items-center gap-1">
+                            <Crown className="w-3.5 h-3.5" /> Ruolo Supremo
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-zinc-400 text-[11px] pt-1">{rDef.description}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 13. PERMESSI & ECONOMIA COACH */}
+          {activeSection === 'permessi' && (
+            <div className="space-y-6">
+              <div className="border-b border-zinc-800 pb-3">
+                <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+                  <Key className="w-5 h-5 text-emerald-400" />
+                  <span>13. Matrice Permessi e Visibilità Economica</span>
+                </h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Regola l'accesso dei Coach ai dati di fatturato, pagamenti e pacchetti dei propri atleti.
+                </p>
+              </div>
+
+              <div className="p-4 bg-zinc-950 border border-zinc-800 rounded-xl flex items-center justify-between gap-4 text-xs">
+                <div>
+                  <p className="font-bold text-zinc-200">Visibilità Dati Economici per i Coach</p>
+                  <p className="text-[11px] text-zinc-400 mt-0.5">
+                    Permetti ai Coach di consultare gli importi saldati dagli atleti a loro assegnati.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => toggleCoachFinancials()}
+                  className={`px-3.5 py-2 rounded-xl border font-bold text-xs shrink-0 transition-all ${
+                    user?.canViewFinancials
+                      ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
+                      : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                  }`}
+                >
+                  {user?.canViewFinancials ? 'Abilitato' : 'Disabilitato'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 14. REGOLE PROMEMORIA */}
+          {activeSection === 'regole_promemoria' && (
+            <div className="space-y-6">
+              <div className="border-b border-zinc-800 pb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+                    <Bell className="w-5 h-5 text-amber-400" />
+                    <span>14. Regole dei Promemoria e Tempistiche</span>
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Configura l'invio automatico delle notifiche prima e dopo la scadenza.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-zinc-950 border border-zinc-800 rounded-xl space-y-3 text-xs">
+                <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+                  <span className="font-bold text-zinc-200">Invio Automatico WhatsApp</span>
+                  <input
+                    type="checkbox"
+                    checked={settings.reminderRules.autoSendWhatsapp}
+                    onChange={(e) =>
+                      updateReminderRules({
+                        ...settings.reminderRules,
+                        autoSendWhatsapp: e.target.checked,
+                      })
+                    }
+                    className="w-4 h-4 rounded accent-amber-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-zinc-200">Invio Automatico Email</span>
+                  <input
+                    type="checkbox"
+                    checked={settings.reminderRules.autoSendEmail}
+                    onChange={(e) =>
+                      updateReminderRules({
+                        ...settings.reminderRules,
+                        autoSendEmail: e.target.checked,
+                      })
+                    }
+                    className="w-4 h-4 rounded accent-amber-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 15. MODELLI MESSAGGI */}
+          {activeSection === 'modelli_messaggi' && (
+            <div className="space-y-6">
+              <div className="border-b border-zinc-800 pb-3">
+                <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-indigo-400" />
+                  <span>15. Modelli dei Messaggi e Template Testuali</span>
+                </h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Testi predefiniti per comunicazioni via WhatsApp, Email e App.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {settings.messageTemplates.map((tmpl) => (
+                  <div key={tmpl.id} className="p-4 bg-zinc-950 border border-zinc-800 rounded-xl space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-amber-400">{tmpl.name}</span>
+                      <span className="px-2 py-0.5 bg-zinc-800 rounded text-[10px] font-mono uppercase text-zinc-300">
+                        {tmpl.channel}
+                      </span>
+                    </div>
+                    <p className="text-zinc-300 font-mono text-[11px] bg-zinc-900 p-2.5 rounded-lg border border-zinc-800 whitespace-pre-wrap">
+                      {tmpl.body}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 16. PRIVACY & GDPR */}
+          {activeSection === 'privacy' && (
+            <div className="space-y-6">
+              <div className="border-b border-zinc-800 pb-3">
+                <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+                  <Lock className="w-5 h-5 text-red-400" />
+                  <span>16. Informativa Privacy & Conformità GDPR</span>
+                </h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Testo informativa sul trattamento dei dati personali e conservazione.
+                </p>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="block text-zinc-300 font-semibold mb-1">Informativa Privacy</label>
+                  <textarea
+                    rows={4}
+                    value={settings.privacy.privacyPolicyText}
+                    onChange={(e) =>
+                      updatePrivacySettings({
+                        ...settings.privacy,
+                        privacyPolicyText: e.target.value,
+                      })
+                    }
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-200 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 17. ESPORTAZIONE DATI */}
+          {activeSection === 'esportazione' && (
+            <div className="space-y-6">
+              <div className="border-b border-zinc-800 pb-3">
+                <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+                  <Download className="w-5 h-5 text-emerald-400" />
+                  <span>17. Esportazione Dati e Backup del Sistema</span>
+                </h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Scarica una copia di backup completa in formato JSON o CSV.
+                </p>
+              </div>
+
+              <div className="p-6 bg-zinc-950 border border-zinc-800 rounded-xl space-y-4 text-center">
+                <Download className="w-10 h-10 text-amber-400 mx-auto" />
+                <div>
+                  <h4 className="text-sm font-bold text-zinc-100">Backup Completo Database (JSON)</h4>
+                  <p className="text-xs text-zinc-400 mt-1 max-w-md mx-auto">
+                    Esporta tutte le impostazioni, il team, i pacchetti e i log dell'organizzazione per sicurezza.
+                  </p>
+                </div>
+                <button
+                  onClick={handleExportFullJson}
+                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold rounded-xl text-xs transition-all inline-flex items-center gap-2 shadow-lg shadow-amber-500/10"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Scarica Backup JSON</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 18. INTEGRAZIONI */}
+          {activeSection === 'integrazioni' && (
+            <div className="space-y-6">
+              <div className="border-b border-zinc-800 pb-3">
+                <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+                  <Share2 className="w-5 h-5 text-purple-400" />
+                  <span>18. Integrazioni API, Gateway & Webhook</span>
+                </h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Collega servizi esterni come WhatsApp Cloud API, Telegram Bot e Server SMTP.
+                </p>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div className="p-4 bg-zinc-950 border border-zinc-800 rounded-xl space-y-2">
+                  <span className="font-bold text-zinc-200">WhatsApp Business Cloud API</span>
+                  <input
+                    type="text"
+                    value={settings.apiIntegrations.whatsappPhoneNumberId}
+                    onChange={(e) =>
+                      updateApiIntegrations({
+                        ...settings.apiIntegrations,
+                        whatsappPhoneNumberId: e.target.value,
+                      })
+                    }
+                    placeholder="Phone Number ID..."
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2 text-zinc-200 font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 19. REGISTRO ATTIVITA (AUDIT LOG) */}
+          {activeSection === 'registro_attivita' && (
+            <div className="space-y-6">
+              <div className="border-b border-zinc-800 pb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+                    <History className="w-5 h-5 text-blue-400" />
+                    <span>19. Registro Attività e Audit Log ({filteredAuditLogs.length})</span>
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Tracciamento di tutte le modifiche contabili, di ruolo e di sistema.
+                  </p>
+                </div>
+                <button
+                  onClick={clearAuditLogs}
+                  className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-bold"
+                >
+                  Svuota Registro
+                </button>
+              </div>
+
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={logSearchQuery}
+                  onChange={(e) => setLogSearchQuery(e.target.value)}
+                  placeholder="Cerca per azione, utente o dettagli..."
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-9 pr-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="space-y-2 max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-800">
+                {filteredAuditLogs.map((log) => (
+                  <div
+                    key={log.id}
+                    className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-xs space-y-1"
+                  >
+                    <div className="flex items-center justify-between text-zinc-400">
+                      <span className="font-bold text-amber-400">{log.action}</span>
+                      <span className="font-mono text-[10px]">
+                        {new Date(log.timestamp).toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="text-zinc-200">{log.details}</p>
+                    <span className="text-[10px] text-zinc-500 block">
+                      Eseguito da: {log.userName} ({log.userRole})
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Invite Member Modal */}
+      {isInviteModalOpen && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <h4 className="text-base font-bold text-zinc-100">Invita Nuovo Collaboratore</h4>
+            <form onSubmit={handleInviteSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-zinc-400 font-semibold mb-1">Nome Completo *</label>
+                <input
+                  type="text"
+                  required
+                  value={inviteName}
+                  onChange={(e) => setInviteName(e.target.value)}
+                  placeholder="es. Alessandro Rossi"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2 text-zinc-200"
+                />
+              </div>
+              <div>
+                <label className="block text-zinc-400 font-semibold mb-1">Email *</label>
+                <input
+                  type="email"
+                  required
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="alessandro@doctorstrength.it"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2 text-zinc-200"
+                />
+              </div>
+              <div>
+                <label className="block text-zinc-400 font-semibold mb-1">Ruolo Assegnato *</label>
+                <select
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value as UserRole)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2 text-zinc-200"
+                >
+                  <option value="amministratore">Amministratore</option>
+                  <option value="coach">Coach / Personal Trainer</option>
+                  <option value="segreteria">Segreteria / Front-desk</option>
+                  <option value="staff">Staff Tecnico</option>
+                  <option value="atleta">Atleta (Portale)</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setIsInviteModalOpen(false)}
+                  className="px-4 py-2 bg-zinc-800 text-zinc-300 rounded-xl text-xs font-semibold"
+                >
+                  Annulla
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-amber-500 text-zinc-950 font-bold rounded-xl text-xs"
+                >
+                  Invia Invito
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {showSqlModal && <SqlScriptModal onClose={() => setShowSqlModal(false)} />}
     </div>
