@@ -1,0 +1,6 @@
+{
+  "name": "Builder Athlete Manager",
+  "description": "Gestionale completo per coach, personal trainer e preparatori atletici (Doctor Strength brand)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
