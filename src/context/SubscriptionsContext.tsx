@@ -9,6 +9,7 @@ import {
 } from '../types';
 import { useAthletes } from './AthletesContext';
 import { computeSubscriptionStatus } from '../lib/subscriptionHelpers';
+import { STORAGE_KEYS, ATHLETE_SUBKEYS } from '../config/storageKeys';
 
 interface SubscriptionsContextType {
   subscriptions: AthleteSubscription[];
@@ -150,7 +151,7 @@ export const SubscriptionsProvider: React.FC<{ children: ReactNode }> = ({ child
   const { athletes, updateAthlete } = useAthletes();
 
   const [subscriptions, setSubscriptions] = useState<AthleteSubscription[]>(() => {
-    const saved = localStorage.getItem('b_subscriptions_list_v2');
+    const saved = localStorage.getItem(STORAGE_KEYS.SUBSCRIPTIONS);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -165,7 +166,7 @@ export const SubscriptionsProvider: React.FC<{ children: ReactNode }> = ({ child
   });
 
   useEffect(() => {
-    localStorage.setItem('b_subscriptions_list_v2', JSON.stringify(subscriptions));
+    localStorage.setItem(STORAGE_KEYS.SUBSCRIPTIONS, JSON.stringify(subscriptions));
   }, [subscriptions]);
 
   // Sync sub-entities into local storage for Athlete Detail view
@@ -178,7 +179,7 @@ export const SubscriptionsProvider: React.FC<{ children: ReactNode }> = ({ child
 
     // 1. Sync Subscriptions array for Athlete Detail
     try {
-      const savedSubs = localStorage.getItem(`${prefix}_subscriptions`);
+      const savedSubs = localStorage.getItem(ATHLETE_SUBKEYS.detailSubscriptions(athleteId));
       let list: any[] = savedSubs ? JSON.parse(savedSubs) : [];
 
       const existingIndex = list.findIndex((s) => s.id === sub.id);
@@ -207,14 +208,14 @@ export const SubscriptionsProvider: React.FC<{ children: ReactNode }> = ({ child
           notes: sub.notes,
         });
       }
-      localStorage.setItem(`${prefix}_subscriptions`, JSON.stringify(list));
+      localStorage.setItem(ATHLETE_SUBKEYS.detailSubscriptions(athleteId), JSON.stringify(list));
     } catch (e) {
       console.error('Failed syncing sub array', e);
     }
 
     // 2. Sync Timeline Event
     try {
-      const savedEvents = localStorage.getItem(`${prefix}_timeline`);
+      const savedEvents = localStorage.getItem(ATHLETE_SUBKEYS.timeline(athleteId));
       let eventsList: any[] = savedEvents ? JSON.parse(savedEvents) : [];
 
       const eventTitle =
@@ -240,14 +241,14 @@ export const SubscriptionsProvider: React.FC<{ children: ReactNode }> = ({ child
         createdAt: new Date().toISOString(),
       });
 
-      localStorage.setItem(`${prefix}_timeline`, JSON.stringify(eventsList));
+      localStorage.setItem(ATHLETE_SUBKEYS.timeline(athleteId), JSON.stringify(eventsList));
     } catch (e) {
       console.error('Failed syncing timeline event', e);
     }
 
     // 3. Sync Payments / Scadenze
     try {
-      const savedPayments = localStorage.getItem(`${prefix}_payments`);
+      const savedPayments = localStorage.getItem(ATHLETE_SUBKEYS.payments(athleteId));
       let paymentsList: any[] = savedPayments ? JSON.parse(savedPayments) : [];
 
       sub.installments.forEach((inst) => {
@@ -278,7 +279,7 @@ export const SubscriptionsProvider: React.FC<{ children: ReactNode }> = ({ child
         }
       });
 
-      localStorage.setItem(`${prefix}_payments`, JSON.stringify(paymentsList));
+      localStorage.setItem(ATHLETE_SUBKEYS.payments(athleteId), JSON.stringify(paymentsList));
     } catch (e) {
       console.error('Failed syncing payments scadenze', e);
     }

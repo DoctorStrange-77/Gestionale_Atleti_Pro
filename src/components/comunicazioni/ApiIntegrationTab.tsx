@@ -121,15 +121,23 @@ app.post('/v1/webhooks/communications', (req, res) => {
   return (
     <div className="space-y-6">
       {/* Notice Banner */}
-      <div className="p-5 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-3">
-        <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-        <div className="text-xs space-y-1">
-          <p className="font-bold text-amber-300">
-            Architettura Predisposta per Integrazioni API & Webhooks
-          </p>
-          <p className="text-amber-200/80 leading-relaxed">
-            I messaggi vengono attualmente aperti direttamente nell'applicazione di destinazione (WhatsApp, Telegram, Client Mail) o copiati negli appunti. Le configurazioni sottostanti predisporranno i payload JSON, gli endpoint e i token per future integrazioni API dirette via backend (Twilio, WhatsApp Business Cloud API, Telegram Bot API, SendGrid, Webhooks).
-          </p>
+      <div className="p-5 bg-amber-500/10 border border-amber-500/20 rounded-2xl space-y-2">
+        <div className="flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+          <div className="text-xs space-y-1">
+            <p className="font-bold text-amber-300">
+              Architettura Predisposta per Integrazioni API & Webhooks
+            </p>
+            <p className="text-amber-200/80 leading-relaxed">
+              I messaggi vengono attualmente aperti direttamente nell'applicazione di destinazione (WhatsApp, Telegram, Client Mail) o copiati negli appunti.
+            </p>
+          </div>
+        </div>
+        <div className="p-3 bg-amber-500/15 border border-amber-500/30 rounded-xl text-xs text-amber-300 font-semibold flex items-center gap-2">
+          <Lock className="w-4 h-4 shrink-0 text-amber-400" />
+          <span>
+            Campi esclusivamente dimostrativi. Non inserire token, password o chiavi API reali: nella demo vengono salvati nel browser.
+          </span>
         </div>
       </div>
 

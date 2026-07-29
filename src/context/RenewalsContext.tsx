@@ -10,6 +10,7 @@ import {
 import { useAthletes } from './AthletesContext';
 import { useSubscriptions } from './SubscriptionsContext';
 import { usePayments } from './PaymentsContext';
+import { STORAGE_KEYS } from '../config/storageKeys';
 import { useToast } from './ToastContext';
 import { calculateAthleteFinancialStatus } from '../lib/statusEngine';
 
@@ -199,21 +200,21 @@ export const RenewalsProvider: React.FC<{ children: ReactNode }> = ({ children }
   const { payments, createPaymentRecord, addAuditLog } = usePayments();
 
   const [renewals, setRenewals] = useState<AthleteRenewal[]>(() => {
-    const saved = localStorage.getItem('builder_athlete_renewals');
+    const saved = localStorage.getItem(STORAGE_KEYS.RENEWALS);
     return saved ? JSON.parse(saved) : SEED_RENEWALS;
   });
 
   const [pauses, setPauses] = useState<SubscriptionPause[]>(() => {
-    const saved = localStorage.getItem('builder_athlete_pauses');
+    const saved = localStorage.getItem(STORAGE_KEYS.PAUSES);
     return saved ? JSON.parse(saved) : SEED_PAUSES;
   });
 
   useEffect(() => {
-    localStorage.setItem('builder_athlete_renewals', JSON.stringify(renewals));
+    localStorage.setItem(STORAGE_KEYS.RENEWALS, JSON.stringify(renewals));
   }, [renewals]);
 
   useEffect(() => {
-    localStorage.setItem('builder_athlete_pauses', JSON.stringify(pauses));
+    localStorage.setItem(STORAGE_KEYS.PAUSES, JSON.stringify(pauses));
   }, [pauses]);
 
   // Recalculate days remaining dynamically based on today's date

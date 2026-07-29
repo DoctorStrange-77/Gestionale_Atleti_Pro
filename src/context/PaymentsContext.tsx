@@ -6,6 +6,7 @@ import { useAthletes } from './AthletesContext';
 
 import { useSubscriptions } from './SubscriptionsContext';
 import { runSystemStatusRecalculation, SystemRecalculationResult } from '../lib/statusEngine';
+import { STORAGE_KEYS } from '../config/storageKeys';
 
 interface QuickRegisterData {
   atletaId?: string;
@@ -40,6 +41,11 @@ interface PaymentsContextType {
     payment: Omit<PaymentRecord, 'id' | 'createdAt' | 'updatedAt' | 'importoResiduo'> & { id?: string },
     authorName?: string
   ) => PaymentRecord;
+  createPaymentRecord: (
+    payment: Omit<PaymentRecord, 'id' | 'createdAt' | 'updatedAt' | 'importoResiduo'> & { id?: string },
+    authorName?: string
+  ) => PaymentRecord;
+  addAuditLog: (entry: Omit<FinancialAuditLog, 'id' | 'createdAt'> & { id?: string; createdAt?: string }) => FinancialAuditLog;
   deletePaymentRecord: (id: string, authorName?: string) => void;
   getPaymentsByAthleteId: (athleteId: string) => PaymentRecord[];
   getPaymentsBySubscriptionId: (subscriptionId: string) => PaymentRecord[];
@@ -197,12 +203,12 @@ const SEED_AUDIT_LOGS: FinancialAuditLog[] = [
 
 export const PaymentsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [payments, setPayments] = useState<PaymentRecord[]>(() => {
-    const saved = localStorage.getItem('doctor_strength_payments');
+    const saved = localStorage.getItem(STORAGE_KEYS.PAYMENTS);
     return saved ? JSON.parse(saved) : SEED_PAYMENTS;
   });
 
   const [auditLogs, setAuditLogs] = useState<FinancialAuditLog[]>(() => {
-    const saved = localStorage.getItem('doctor_strength_financial_audit');
+    const saved = localStorage.getItem(STORAGE_KEYS.FINANCIAL_AUDIT);
     return saved ? JSON.parse(saved) : SEED_AUDIT_LOGS;
   });
 
@@ -215,11 +221,11 @@ export const PaymentsProvider: React.FC<{ children: ReactNode }> = ({ children }
   const { subscriptions, bulkSetSubscriptions } = useSubscriptions();
 
   useEffect(() => {
-    localStorage.setItem('doctor_strength_payments', JSON.stringify(payments));
+    localStorage.setItem(STORAGE_KEYS.PAYMENTS, JSON.stringify(payments));
   }, [payments]);
 
   useEffect(() => {
-    localStorage.setItem('doctor_strength_financial_audit', JSON.stringify(auditLogs));
+    localStorage.setItem(STORAGE_KEYS.FINANCIAL_AUDIT, JSON.stringify(auditLogs));
   }, [auditLogs]);
 
   const triggerSystemStatusRecalculation = async (
@@ -500,6 +506,33 @@ export const PaymentsProvider: React.FC<{ children: ReactNode }> = ({ children }
     return payments.filter((p) => p.abbonamentoId === subscriptionId);
   };
 
+  const createPaymentRecord = (
+    data: Omit<PaymentRecord, 'id' | 'createdAt' | 'updatedAt' | 'importoResiduo'> & { id?: string },
+    authorName?: string
+  ): PaymentRecord => {
+    return savePaymentRecord(data, authorName);
+  };
+
+  const addAuditLog = (entry: Omit<FinancialAuditLog, 'id' | 'createdAt'> & { id?: string; createdAt?: string }): FinancialAuditLog => {
+    const now = new Date();
+    const newLog: FinancialAuditLog = {
+      id: entry.id || `audit-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      pagamentoId: entry.pagamentoId,
+      atletaId: entry.atletaId,
+      atletaNome: entry.atletaNome,
+      abbonamentoNome: entry.abbonamentoNome,
+      azione: entry.azione,
+      valorePrecedente: entry.valorePrecedente,
+      nuovoValore: entry.nuovoValore,
+      autore: entry.autore || getAuthorName(),
+      data: entry.data || now.toISOString().split('T')[0],
+      ora: entry.ora || now.toTimeString().split(' ')[0],
+      createdAt: entry.createdAt || now.toISOString(),
+    };
+    setAuditLogs((prev) => [newLog, ...prev]);
+    return newLog;
+  };
+
   return (
     <PaymentsContext.Provider
       value={{
@@ -511,6 +544,8 @@ export const PaymentsProvider: React.FC<{ children: ReactNode }> = ({ children }
         closeQuickRegisterModal,
         registerPayment,
         savePaymentRecord,
+        createPaymentRecord,
+        addAuditLog,
         deletePaymentRecord,
         getPaymentsByAthleteId,
         getPaymentsBySubscriptionId,

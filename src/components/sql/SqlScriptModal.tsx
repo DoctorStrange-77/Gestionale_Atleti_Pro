@@ -136,8 +136,8 @@ CREATE POLICY "Members view org members" ON public.organization_members FOR SELE
             <div>
               <h3 className="font-bold text-base text-zinc-100 flex items-center gap-2">
                 Schema SQL Multi-Tenant & Row Level Security (RLS)
-                <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
-                  Supabase Ready
+                <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold">
+                  Predisposizione futura — non attiva nella demo
                 </span>
               </h3>
               <p className="text-xs text-zinc-300">

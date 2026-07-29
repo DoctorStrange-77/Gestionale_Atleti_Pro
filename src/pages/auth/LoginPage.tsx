@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ForgotPasswordModal } from './ForgotPasswordModal';
+import { DemoBanner } from '../../components/common/DemoBanner';
 import {
   Dumbbell,
   Lock,
@@ -73,11 +74,14 @@ export const LoginPage: React.FC = () => {
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600" />
 
-          <div className="mb-6">
+          {/* Demo Banner for Login */}
+          <DemoBanner variant="login" />
+
+          <div className="mb-5">
             <h2 className="text-lg font-bold text-zinc-100">Accesso Riservato Coach</h2>
-            <p className="text-xs text-zinc-400 mt-1">
-              Inserisci le tue credenziali per accedere al gestionale atleti.
-            </p>
+            <div className="mt-2 p-3 bg-amber-500/10 border border-amber-500/25 rounded-xl text-xs text-amber-200/90 leading-relaxed">
+              Il modulo email e password è presente per dimostrare come potrebbe funzionare un’autenticazione reale. Nella versione attuale l’accesso è simulato.
+            </div>
           </div>
 
           {/* Red error alert (Red strictly used for errors as specified) */}
@@ -183,8 +187,8 @@ export const LoginPage: React.FC = () => {
           <div className="mt-6 pt-5 border-t border-zinc-800/80 text-center space-y-3">
             <p className="text-[11px] text-zinc-400">
               {isSupabaseConnected
-                ? 'Connessione Supabase Auth Attiva'
-                : 'Modalità Demo (Supabase non ancora collegato in .env)'}
+                ? 'Connessione Supabase (Predisposizione futura — non attiva nella demo)'
+                : 'Modalità Demo Locale (Dati salvati nel browser)'}
             </p>
             <button
               id="btn-login-demo"
@@ -202,7 +206,7 @@ export const LoginPage: React.FC = () => {
         <div className="text-center mt-6 text-zinc-400 text-[11px] space-y-1">
           <p className="flex items-center justify-center gap-1">
             <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-            <span>Sicurezza Crittografata Supabase Auth & PostgreSQL</span>
+            <span>Versione dimostrativa locale — autenticazione reale non configurata</span>
           </p>
           <p>© {new Date().getFullYear()} Builder Athlete Manager • Doctor Strength Method</p>
         </div>

@@ -20,10 +20,10 @@ export const SupabaseNotice: React.FC = () => {
       >
         <Database className="w-3.5 h-3.5" />
         <span className="hidden sm:inline">
-          {isSupabaseConfigured ? 'Supabase Connesso' : 'Database: Modalità Demo'}
+          {isSupabaseConfigured ? 'Supabase (Predisposizione)' : 'Database: Modalità Demo'}
         </span>
         <span className="inline sm:hidden">
-          {isSupabaseConfigured ? 'Supabase' : 'Demo'}
+          {isSupabaseConfigured ? 'Predisposizione' : 'Demo'}
         </span>
         <span
           className={`w-2 h-2 rounded-full ${

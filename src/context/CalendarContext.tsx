@@ -5,6 +5,7 @@ import { usePayments } from './PaymentsContext';
 import { useSubscriptions } from './SubscriptionsContext';
 import { useRenewals } from './RenewalsContext';
 import { useAthletes } from './AthletesContext';
+import { STORAGE_KEYS } from '../config/storageKeys';
 
 interface CalendarContextType {
   customEvents: CalendarEvent[];
@@ -16,7 +17,7 @@ interface CalendarContextType {
 
 const CalendarContext = createContext<CalendarContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'app_calendar_events_v2';
+const STORAGE_KEY = STORAGE_KEYS.CALENDAR;
 
 const INITIAL_EVENTS: CalendarEvent[] = [
   {

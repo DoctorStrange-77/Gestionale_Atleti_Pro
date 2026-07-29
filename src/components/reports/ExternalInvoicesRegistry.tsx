@@ -14,12 +14,13 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { ExternalInvoice, Athlete } from '../../types';
+import { STORAGE_KEYS } from '../../config/storageKeys';
 
 interface ExternalInvoicesRegistryProps {
   athletes: Athlete[];
 }
 
-const LOCAL_STORAGE_KEY = 'doctor_strength_external_invoices';
+const LOCAL_STORAGE_KEY = STORAGE_KEYS.EXTERNAL_INVOICES;
 
 const SEED_EXTERNAL_INVOICES: ExternalInvoice[] = [
   {

@@ -10,6 +10,7 @@ import {
   ApiIntegrationConfig,
 } from '../types';
 import { useToast } from './ToastContext';
+import { STORAGE_KEYS } from '../config/storageKeys';
 
 interface SettingsContextType {
   settings: OrganizationSettings;
@@ -27,12 +28,12 @@ interface SettingsContextType {
   resetToDefaults: () => void;
 }
 
-const SETTINGS_STORAGE_KEY = 'doctor_strength_org_settings';
-const AUDIT_LOG_STORAGE_KEY = 'doctor_strength_audit_logs';
+const SETTINGS_STORAGE_KEY = STORAGE_KEYS.SETTINGS;
+const AUDIT_LOG_STORAGE_KEY = STORAGE_KEYS.AUDIT_LOGS;
 
 const DEFAULT_PAYMENT_METHODS: PaymentMethodSetting[] = [
   { id: 'pm-1', name: 'Contanti', code: 'contanti', enabled: true, notes: 'Incasso diretto in cassa' },
-  { id: 'pm-2', name: 'Bonifico Bancario', code: 'bonifico', enabled: true, notes: 'IBAN IT00X0000000000000000000' },
+  { id: 'pm-2', name: 'Bonifico Bancario', code: 'bonifico', enabled: true, notes: 'IBAN IT00000000000000000000' },
   { id: 'pm-3', name: 'Carta di Credito / POS', code: 'carta', enabled: true, notes: 'POS SumUp o Nexi in reception' },
   { id: 'pm-4', name: 'Stripe Online', code: 'stripe', enabled: true, notes: 'Gateway pagamento automatico carta' },
   { id: 'pm-5', name: 'PayPal', code: 'paypal', enabled: true, notes: 'Integrazione contabilità PayPal' },
@@ -103,35 +104,35 @@ const DEFAULT_PRIVACY: PrivacySettings = {
   privacyPolicyText: 'Informativa sul trattamento dei dati personali ai sensi del Regolamento UE 2016/679 (GDPR). I dati sanitari, anamnestici e di allenamento sono trattati esclusivamente per l\'erogazione dei servizi di personal training e preparazione atletica.',
   consentRetentionMonths: 24,
   requireMedicalCertificateConsent: true,
-  gdprContactEmail: 'privacy@doctorstrength.it',
+  gdprContactEmail: 'demo@example.com',
 };
 
 const DEFAULT_API_INTEGRATIONS: ApiIntegrationConfig = {
-  whatsappEnabled: true,
-  whatsappPhoneNumberId: '1098237498123',
-  whatsappAccessToken: 'EAAG1234567890qwertyuiop...',
+  whatsappEnabled: false,
+  whatsappPhoneNumberId: '000000000000000',
+  whatsappAccessToken: 'DEMO_WHATSAPP_TOKEN',
   telegramEnabled: false,
-  telegramBotToken: '',
+  telegramBotToken: 'DEMO_TELEGRAM_TOKEN',
   telegramChatId: '',
-  emailEnabled: true,
-  smtpHost: 'mail.doctorstrength.it',
+  emailEnabled: false,
+  smtpHost: 'smtp.example.com',
   smtpPort: 587,
-  smtpUser: 'notifiche@doctorstrength.it',
-  webhookUrl: 'https://api.doctorstrength.it/v1/webhooks/events',
-  webhookSecret: 'whsec_98765432101234567890',
+  smtpUser: 'demo@example.com',
+  webhookUrl: 'https://api.example.com/demo',
+  webhookSecret: 'DEMO_WEBHOOK_SECRET',
 };
 
 const DEFAULT_SETTINGS: OrganizationSettings = {
   businessName: 'Doctor Strength Performance Center',
   legalName: 'Doctor Strength S.r.l. Società Sportiva Dilettantistica',
-  vatNumber: 'IT01234567890',
-  fiscalCode: '01234567890',
-  address: 'Via dell\'Atletica, 42',
+  vatNumber: 'IT00000000000',
+  fiscalCode: '00000000000',
+  address: 'Via Dimostrativa, 1',
   city: 'Milano',
-  postalCode: '20121',
-  phone: '+39 02 9876543',
-  email: 'info@doctorstrength.it',
-  website: 'https://doctorstrength.it',
+  postalCode: '20100',
+  phone: '+39 02 0000000',
+  email: 'demo@example.com',
+  website: 'https://example.com/demo',
   logoUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=150&q=80',
   primaryColor: '#f59e0b', // Amber-500 default
   secondaryColor: '#3b82f6', // Blue-500 default

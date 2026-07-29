@@ -82,16 +82,16 @@ export function isDateInRange(dateStr?: string, startDate?: string, endDate?: st
 
 /**
  * Exclusion check for payments based on prompt rules:
- * - Non conteggiare: pagamenti annullati, importi non realmente incassati, rimborsi come entrate, pagamenti duplicati
+ * - Non conteggiare: pagamenti annullati, importi non realmente incassati, pagamenti duplicati
+ * - I pagamenti parzialmente rimborsati vengono conteggiati per il loro importo netto pagato
  */
 export function isValidPayment(payment: PaymentRecord): boolean {
   if (!payment) return false;
   const statusLower = (payment.stato || '').toLowerCase();
   const notesLower = (payment.note || '').toLowerCase();
 
-  // Exclude cancelled, refunded, duplicate
-  if (statusLower === 'annullato') return false;
-  if (statusLower === 'rimborsato' || statusLower === 'parzialmente rimborsato') return false;
+  // Exclude fully cancelled, fully refunded, duplicate
+  if (statusLower === 'annullato' || statusLower === 'rimborsato') return false;
   if (notesLower.includes('duplicat') || notesLower.includes('annullat')) return false;
 
   return true;

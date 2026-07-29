@@ -12,6 +12,11 @@ import {
 import { useAthletes } from './AthletesContext';
 import { useToast } from './ToastContext';
 import { useAuth } from './AuthContext';
+import { STORAGE_KEYS } from '../config/storageKeys';
+
+export const MAX_DOCUMENT_SIZE_BYTES = 1 * 1024 * 1024; // 1 MB
+export const ALLOWED_DOCUMENT_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+export const ALLOWED_DOCUMENT_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png'];
 
 interface DocumentsContextType {
   documents: AthleteDocument[];
@@ -50,8 +55,8 @@ interface DocumentsContextType {
 
 const DocumentsContext = createContext<DocumentsContextType | undefined>(undefined);
 
-const LOCAL_DOCS_KEY = 'builder_athlete_manager_documents_v1';
-const LOCAL_CONSENTS_KEY = 'builder_athlete_manager_consents_v1';
+const LOCAL_DOCS_KEY = STORAGE_KEYS.DOCUMENTS;
+const LOCAL_CONSENTS_KEY = STORAGE_KEYS.CONSENTS;
 
 // Sample dummy PDF file generator for seed data
 const createSampleFile = (name: string, type: string, size: number, bucket: string, path: string): StoredFile => {
@@ -247,7 +252,7 @@ const INITIAL_CONSENTS: AthleteConsent[] = [
 export const DocumentsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { athletes } = useAthletes();
   const { user } = useAuth();
-  const { showSuccess, showInfo } = useToast();
+  const { showSuccess, showError, showInfo } = useToast();
 
   const [documents, setDocuments] = useState<AthleteDocument[]>(() => {
     try {
@@ -278,29 +283,67 @@ export const DocumentsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_DOCS_KEY, JSON.stringify(documents));
-    } catch (e) {
-      console.error('Error saving documents to storage', e);
+    } catch (e: any) {
+      if (e?.name === 'QuotaExceededError' || e?.code === 22 || e?.code === 1014) {
+        showError(
+          'Memoria Locale Insufficiente',
+          'Memoria locale insufficiente. Elimina alcuni documenti o ripristina i dati dimostrativi.'
+        );
+      } else {
+        console.error('Error saving documents to storage', e);
+      }
     }
   }, [documents]);
 
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_CONSENTS_KEY, JSON.stringify(consents));
-    } catch (e) {
-      console.error('Error saving consents to storage', e);
+    } catch (e: any) {
+      if (e?.name === 'QuotaExceededError' || e?.code === 22 || e?.code === 1014) {
+        showError(
+          'Memoria Locale Insufficiente',
+          'Memoria locale insufficiente. Elimina alcuni documenti o ripristina i dati dimostrativi.'
+        );
+      } else {
+        console.error('Error saving consents to storage', e);
+      }
     }
   }, [consents]);
 
-  // Simulated Supabase Storage upload
+  // Local storage document upload helper with validation and conversion
   const uploadFileToSupabaseStorage = async (file: File, category: DocumentCategory, athleteId: string): Promise<StoredFile> => {
+    // 1. Validation rule: size limit
+    if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
+      throw new Error('Il file supera il limite di 1 MB previsto per la versione dimostrativa. Utilizza un file più piccolo.');
+    }
+
+    // 2. Validation rule: allowed formats (PDF, JPG, JPEG, PNG)
+    const fileName = file.name.toLowerCase();
+    const ext = '.' + (fileName.split('.').pop() || '');
+    const isMimeOk = ALLOWED_DOCUMENT_MIME_TYPES.includes(file.type.toLowerCase());
+    const isExtOk = ALLOWED_DOCUMENT_EXTENSIONS.includes(ext);
+
+    if (!isMimeOk && !isExtOk) {
+      throw new Error('Formato file non supportato. I formati consentiti sono PDF, JPG, JPEG e PNG.');
+    }
+
     const bucketName = category === 'certificato medico' ? 'medical' : category === 'consenso privacy' ? 'consents' : 'documents';
     const sanitizeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const path = `athletes/${athleteId}/${Date.now()}_${sanitizeName}`;
 
-    // Convert file to Base64/DataURL for realistic local preview
-    const dataUrl = await new Promise<string>((resolve) => {
+    // 3. Convert file to Base64/DataURL ONLY if checks passed
+    const dataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result);
+        } else {
+          reject(new Error('Errore nella lettura del file.'));
+        }
+      };
+      reader.onerror = () => {
+        reject(new Error('Impossibile leggere il file selezionato.'));
+      };
       reader.readAsDataURL(file);
     });
 
@@ -345,9 +388,25 @@ export const DocumentsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       updatedAt: new Date().toISOString(),
     };
 
-    setDocuments((prev) => [newDoc, ...prev]);
-    showSuccess('Documento Caricato', `Salvato con successo su Supabase Storage (${newDoc.file.bucket}).`);
-    return newDoc;
+    const updatedDocs = [newDoc, ...documents];
+
+    // Attempt saving to localStorage before confirming success
+    try {
+      localStorage.setItem(LOCAL_DOCS_KEY, JSON.stringify(updatedDocs));
+      setDocuments(updatedDocs);
+      showSuccess('Documento Caricato', 'Documento salvato localmente nella demo.');
+      return newDoc;
+    } catch (e: any) {
+      if (e?.name === 'QuotaExceededError' || e?.code === 22 || e?.code === 1014) {
+        showError(
+          'Memoria Insufficiente',
+          'Memoria locale insufficiente. Elimina alcuni documenti o ripristina i dati dimostrativi.'
+        );
+      } else {
+        showError('Errore di Salvataggio', 'Impossibile salvare il documento in memoria locale.');
+      }
+      throw new Error('Salvataggio fallito: memoria locale insufficiente.');
+    }
   };
 
   const updateDocument = (id: string, data: Partial<AthleteDocument>) => {
@@ -359,7 +418,7 @@ export const DocumentsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const deleteDocument = (id: string) => {
     setDocuments((prev) => prev.filter((d) => d.id !== id));
-    showInfo('Documento Eliminato', 'Il file è stato rimosso dallo storage Supabase.');
+    showInfo('Documento Eliminato', 'Il file è stato rimosso dalla memoria locale.');
   };
 
   const addConsent = (data: {

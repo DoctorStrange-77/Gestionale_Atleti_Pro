@@ -1,6 +1,6 @@
 {
   "name": "Builder Athlete Manager",
-  "description": "Gestionale completo per coach, personal trainer e preparatori atletici (Doctor Strength brand)",
+  "description": "Applicazione dimostrativa per la gestione di atleti, pagamenti, abbonamenti e scadenze, realizzata con strumenti di vibe coding.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

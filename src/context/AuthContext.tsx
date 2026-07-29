@@ -331,7 +331,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     setMembers((prev) => [...prev, newMember]);
-    showSuccess('Invito Inviato', `${fullName} (${email}) aggiunto come ${roleCode}`);
+    showSuccess('Collaboratore Aggiunto', `${fullName} (${email}) aggiunto alla demo (invito simulato)`);
   };
 
   // Update member role
@@ -391,8 +391,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: email || INITIAL_DEMO_USER.email,
         });
         setIsLoading(false);
-        showSuccess('Accesso effettuato con successo (Modalità Demo)');
-      }, 500);
+        showInfo('Accesso Demo Effettuato', 'Accesso demo effettuato. Nessuna autenticazione reale è stata eseguita.');
+      }, 400);
       return true;
     }
 
@@ -445,7 +445,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     if (!isSupabaseConfigured || !supabase) {
-      showSuccess('Istruzioni inviate', `(Modalità Demo) Email inviata a ${email}`);
+      showInfo('Funzione Dimostrativa', 'Funzione dimostrativa: nessuna email è stata realmente inviata.');
       return true;
     }
 
@@ -454,7 +454,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         redirectTo: `${window.location.origin}/reset-password`,
       });
       if (error) throw error;
-      showSuccess('Email inviata', `Abbiamo inviato un link a ${email}`);
+      showInfo('Funzione Dimostrativa', 'Funzione dimostrativa: nessuna email è stata realmente inviata.');
       return true;
     } catch (err: any) {
       showError('Errore invio', err.message || 'Impossibile inviare l\'email');

@@ -38,10 +38,12 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { usePackages } from '../context/PackagesContext';
+import { useToast } from '../context/ToastContext';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { ROLE_DEFINITIONS } from '../lib/permissions';
 import { SqlScriptModal } from '../components/sql/SqlScriptModal';
 import { UserRole, CustomLabelTag, MessageTemplateSetting, PaymentMethodSetting } from '../types';
+import { clearAppLocalStorage, exportAppLocalStorage, importAppLocalStorage } from '../config/storageKeys';
 
 type SettingsSectionId =
   | 'organizzazione'
@@ -75,6 +77,7 @@ const COLOR_PRESETS = [
 
 export const ImpostazioniPage: React.FC = () => {
   const { user, toggleCoachFinancials, members, inviteMember, updateMemberRole, toggleMemberFinancials } = useAuth();
+  const { showSuccess, showError, showInfo } = useToast();
   const {
     settings,
     auditLogs,
@@ -225,21 +228,70 @@ export const ImpostazioniPage: React.FC = () => {
     setIsInviteModalOpen(false);
   };
 
-  // Export full JSON database
-  const handleExportFullJson = () => {
-    const fullBackup = {
-      exportedAt: new Date().toISOString(),
-      organization: settings,
-      members,
-      packages,
-      auditLogs,
-    };
-    const blob = new Blob([JSON.stringify(fullBackup, null, 2)], { type: 'application/json' });
+  // Ripristina dati demo
+  const handleResetDemoData = () => {
+    const confirmed = window.confirm(
+      'Sei sicuro di voler ripristinare i dati dimostrativi? Tutti i dati locali correnti verranno eliminati e verranno ricaricati i dati di esempio iniziali.'
+    );
+    if (!confirmed) return;
+
+    clearAppLocalStorage();
+    showSuccess('Dati Demo Ripristinati', 'I dati dell\'applicazione sono stati ripristinati alle impostazioni dimostrative iniziali.');
+    setTimeout(() => {
+      window.location.reload();
+    }, 800);
+  };
+
+  // Esporta backup demo
+  const handleExportDemoBackup = () => {
+    const backupData = exportAppLocalStorage();
+    const jsonStr = JSON.stringify(backupData, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `backup_${settings.businessName.toLowerCase().replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `backup_demo_builder_athlete_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showSuccess('Backup Esportato', 'Il file JSON con i dati locali della demo è stato scaricato con successo.');
+  };
+
+  // Importa backup demo
+  const handleImportDemoBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const parsed = JSON.parse(content);
+
+        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed) || Object.keys(parsed).length === 0) {
+          showError('File Non Valido', 'Il file selezionato non contiene una struttura di backup valida.');
+          return;
+        }
+
+        const confirmed = window.confirm(
+          'Sei sicuro di voler importare questo backup? Tutti i dati locali correnti verranno sovrascritti con i dati del file selezionato.'
+        );
+        if (!confirmed) return;
+
+        importAppLocalStorage(parsed);
+        showSuccess('Backup Importato', 'Dati ripristinati con successo dal file di backup. Ricaricamento in corso...');
+        setTimeout(() => {
+          window.location.reload();
+        }, 800);
+      } catch (err) {
+        console.error(err);
+        showError('Errore File', 'Impossibile leggere il file JSON. Assicurati che sia un file di backup valido.');
+      }
+    };
+    reader.onerror = () => {
+      showError('Errore Lettura', 'Impossibile caricare il file selezionato.');
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   // Filter audit logs
@@ -1271,34 +1323,93 @@ export const ImpostazioniPage: React.FC = () => {
             </div>
           )}
 
-          {/* 17. ESPORTAZIONE DATI */}
+          {/* 17. GESTIONE DATI DIMOSTRATIVI E BACKUP */}
           {activeSection === 'esportazione' && (
             <div className="space-y-6">
               <div className="border-b border-zinc-800 pb-3">
                 <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
-                  <Download className="w-5 h-5 text-emerald-400" />
-                  <span>17. Esportazione Dati e Backup del Sistema</span>
+                  <Download className="w-5 h-5 text-amber-400" />
+                  <span>17. Gestione Dati Dimostrativi e Backup</span>
                 </h3>
                 <p className="text-xs text-zinc-400 mt-1">
-                  Scarica una copia di backup completa in formato JSON o CSV.
+                  Gestisci il ripristino dei dati demo iniziali o effettua il backup e l'importazione dei dati salvati nel browser.
                 </p>
               </div>
 
-              <div className="p-6 bg-zinc-950 border border-zinc-800 rounded-xl space-y-4 text-center">
-                <Download className="w-10 h-10 text-amber-400 mx-auto" />
+              {/* Informative Banner */}
+              <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-3 text-xs text-amber-200">
+                <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="text-sm font-bold text-zinc-100">Backup Completo Database (JSON)</h4>
-                  <p className="text-xs text-zinc-400 mt-1 max-w-md mx-auto">
-                    Esporta tutte le impostazioni, il team, i pacchetti e i log dell'organizzazione per sicurezza.
+                  <span className="font-bold block mb-0.5">Nota sulla persistenza locale:</span>
+                  <p className="text-amber-300/90 text-[11px] leading-relaxed">
+                    Il ripristino elimina solo i dati locali di questa demo salvati nel browser (chiavi <code className="bg-amber-950/60 px-1 py-0.5 rounded font-mono">builder_athlete_*</code>). Non vengono toccati dati di altri siti o domini.
                   </p>
                 </div>
-                <button
-                  onClick={handleExportFullJson}
-                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold rounded-xl text-xs transition-all inline-flex items-center gap-2 shadow-lg shadow-amber-500/10"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Scarica Backup JSON</span>
-                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* 1. Ripristina Dati Demo */}
+                <div className="p-5 bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col justify-between space-y-4">
+                  <div className="space-y-2">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                      <RotateCcw className="w-5 h-5" />
+                    </div>
+                    <h4 className="text-sm font-bold text-zinc-100">Ripristina dati demo</h4>
+                    <p className="text-xs text-zinc-400 leading-relaxed">
+                      Elimina i dati locali correnti e ricarica i dati dimostrativi iniziali dell'applicazione.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleResetDemoData}
+                    className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    <span>Ripristina dati demo</span>
+                  </button>
+                </div>
+
+                {/* 2. Esporta Backup Demo */}
+                <div className="p-5 bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col justify-between space-y-4">
+                  <div className="space-y-2">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                      <Download className="w-5 h-5" />
+                    </div>
+                    <h4 className="text-sm font-bold text-zinc-100">Esporta backup demo</h4>
+                    <p className="text-xs text-zinc-400 leading-relaxed">
+                      Scarica un file JSON completo contenente tutti i dati dell'applicazione presenti nel localStorage.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleExportDemoBackup}
+                    className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Esporta backup demo</span>
+                  </button>
+                </div>
+
+                {/* 3. Importa Backup Demo */}
+                <div className="p-5 bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col justify-between space-y-4">
+                  <div className="space-y-2">
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                      <FileSpreadsheet className="w-5 h-5" />
+                    </div>
+                    <h4 className="text-sm font-bold text-zinc-100">Importa backup demo</h4>
+                    <p className="text-xs text-zinc-400 leading-relaxed">
+                      Seleziona un file JSON di backup precedentemente salvato per ripristinare i dati della demo.
+                    </p>
+                  </div>
+                  <label className="w-full py-2.5 bg-blue-500 hover:bg-blue-600 text-zinc-950 font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-blue-500/10">
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span>Importa backup demo</span>
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={handleImportDemoBackup}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
               </div>
             </div>
           )}

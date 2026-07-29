@@ -53,6 +53,21 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
 
   if (!isOpen) return null;
 
+  const validateSelectedFile = (file: File): boolean => {
+    if (file.size > 1 * 1024 * 1024) {
+      showError('File troppo grande', 'Il file supera il limite di 1 MB previsto per la versione dimostrativa. Utilizza un file più piccolo.');
+      return false;
+    }
+    const ext = '.' + (file.name.split('.').pop() || '').toLowerCase();
+    const allowedMime = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+    const allowedExt = ['.pdf', '.jpg', '.jpeg', '.png'];
+    if (!allowedMime.includes(file.type.toLowerCase()) && !allowedExt.includes(ext)) {
+      showError('Formato non supportato', 'Formato file non supportato. I formati consentiti sono PDF, JPG, JPEG e PNG.');
+      return false;
+    }
+    return true;
+  };
+
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -69,9 +84,11 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
     setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
-      setSelectedFile(file);
-      if (!title) {
-        setTitle(file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' '));
+      if (validateSelectedFile(file)) {
+        setSelectedFile(file);
+        if (!title) {
+          setTitle(file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' '));
+        }
       }
     }
   };
@@ -79,9 +96,11 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setSelectedFile(file);
-      if (!title) {
-        setTitle(file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' '));
+      if (validateSelectedFile(file)) {
+        setSelectedFile(file);
+        if (!title) {
+          setTitle(file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' '));
+        }
       }
     }
   };
@@ -140,7 +159,7 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
     } catch (err) {
       console.error(err);
       setIsUploading(false);
-      showError('Errore Caricamento', 'Impossibile completare il caricamento del file su Supabase Storage.');
+      showError('Errore Caricamento', 'Impossibile completare il salvataggio locale del file.');
     }
   };
 
@@ -156,7 +175,7 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
             <div>
               <h3 className="text-base font-bold text-zinc-100">Carica Nuovo Documento</h3>
               <p className="text-xs text-zinc-400">
-                Archiviazione protetta su <span className="text-emerald-400 font-semibold">Supabase Storage</span>
+                Archiviazione locale dimostrativa — <span className="text-amber-400 font-semibold">Memoria del browser (Predisposizione Supabase)</span>
               </p>
             </div>
           </div>
@@ -170,6 +189,14 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {/* Informative Demo Banner */}
+          <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-2.5">
+            <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-200/90 leading-relaxed">
+              Nella demo i documenti vengono salvati localmente nel browser. Non caricare documenti reali o contenenti dati sensibili.
+            </p>
+          </div>
+
           {/* File Dropzone */}
           <div>
             <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-2">
@@ -194,8 +221,8 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
                     <FileText className="w-8 h-8 text-amber-400 shrink-0" />
                     <div className="truncate">
                       <p className="text-xs font-bold text-zinc-100 truncate">{selectedFile.name}</p>
-                      <p className="text-[11px] text-zinc-400">
-                        {(selectedFile.size / 1024).toFixed(1)} KB • {selectedFile.type || 'Documento'}
+                      <p className="text-[11px] text-zinc-400 font-mono">
+                        {(selectedFile.size / 1024).toFixed(1)} KB ({(selectedFile.size / (1024 * 1024)).toFixed(2)} MB) • {selectedFile.type || 'Documento'}
                       </p>
                     </div>
                   </div>
@@ -217,13 +244,13 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
                       <input
                         type="file"
                         onChange={handleFileChange}
-                        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                        accept=".pdf,.jpg,.jpeg,.png"
                         className="hidden"
                       />
                     </label>
                   </p>
-                  <p className="text-[11px] text-zinc-500">
-                    Formati supportati: PDF, JPG, PNG, DOCX (Max 25MB)
+                  <p className="text-[11px] text-zinc-400">
+                    Formati consentiti: <span className="font-semibold text-zinc-300">PDF, JPG, JPEG, PNG</span> (Dimensione max: <span className="text-amber-400 font-bold">1 MB</span>)
                   </p>
                 </div>
               )}
@@ -357,7 +384,7 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
               {isUploading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-zinc-950 border-t-transparent rounded-full animate-spin" />
-                  <span>Caricamento Supabase...</span>
+                  <span>Conversione e salvataggio locale...</span>
                 </>
               ) : (
                 <>

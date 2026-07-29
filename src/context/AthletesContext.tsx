@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Athlete, AthleteFormData, AthleteStatus, AthletePaymentStatus } from '../types';
+import { Athlete, AthleteFormData, AthleteStatus, AthletePaymentStatus, TimelineEvent } from '../types';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
+import { STORAGE_KEYS, ATHLETE_SUBKEYS } from '../config/storageKeys';
 
 interface AthletesContextType {
   athletes: Athlete[];
@@ -16,11 +17,12 @@ interface AthletesContextType {
   updateAthletePaymentStatus: (id: string, paymentStatus: AthletePaymentStatus) => void;
   bulkSetAthletes: (athletes: Athlete[]) => void;
   exportToCSV: (selectedIds?: string[]) => void;
+  addTimelineEvent: (athleteId: string, eventData: Omit<TimelineEvent, 'id' | 'athleteId' | 'createdAt'>) => void;
 }
 
 const AthletesContext = createContext<AthletesContextType | undefined>(undefined);
 
-const LOCAL_STORAGE_KEY = 'builder_athlete_manager_athletes_v1';
+const LOCAL_STORAGE_KEY = STORAGE_KEYS.ATHLETES;
 
 const INITIAL_ATHLETES: Athlete[] = [
   {
@@ -609,6 +611,24 @@ export const AthletesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     showSuccess('Export Completato', `Scaricato CSV con ${targetAthletes.length} atleti.`);
   };
 
+  const addTimelineEvent = (athleteId: string, eventData: Omit<TimelineEvent, 'id' | 'athleteId' | 'createdAt'>) => {
+    try {
+      const storageKey = ATHLETE_SUBKEYS.timeline(athleteId);
+      const existingStr = localStorage.getItem(storageKey);
+      const existingEvents: TimelineEvent[] = existingStr ? JSON.parse(existingStr) : [];
+      const newEvent: TimelineEvent = {
+        ...eventData,
+        id: `evt-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        athleteId,
+        createdAt: new Date().toISOString(),
+      };
+      const updatedEvents = [newEvent, ...existingEvents];
+      localStorage.setItem(storageKey, JSON.stringify(updatedEvents));
+    } catch (err) {
+      console.error('Error saving timeline event:', err);
+    }
+  };
+
   return (
     <AthletesContext.Provider
       value={{
@@ -624,6 +644,7 @@ export const AthletesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         updateAthletePaymentStatus,
         bulkSetAthletes,
         exportToCSV,
+        addTimelineEvent,
       }}
     >
       {children}

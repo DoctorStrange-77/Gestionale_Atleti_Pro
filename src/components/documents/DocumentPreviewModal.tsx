@@ -22,7 +22,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   const formattedSize = (document.file.size / 1024).toFixed(1) + ' KB';
 
   const handleDelete = () => {
-    if (window.confirm(`Sei sicuro di voler eliminare permanentemente "${document.title}" da Supabase Storage?`)) {
+    if (window.confirm(`Sei sicuro di voler eliminare permanentemente "${document.title}" dalla memoria locale?`)) {
       deleteDocument(document.id);
       onClose();
     }
@@ -38,7 +38,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
       document.body.removeChild(link);
     } else {
       // Simulate file download
-      const content = `SUPABASE STORAGE DEMO FILE\nDocumento: ${document.title}\nAtleta: ${document.athleteName}\nCategoria: ${document.category}\nData caricamento: ${document.uploadDate}\nPath: ${document.file.path}`;
+      const content = `DEMO LOCAL STORAGE FILE\nDocumento: ${document.title}\nAtleta: ${document.athleteName}\nCategoria: ${document.category}\nData caricamento: ${document.uploadDate}\nPath: ${document.file.path}`;
       const blob = new Blob([content], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -110,7 +110,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
             <div className="p-3.5 bg-zinc-950/60 border border-zinc-800/80 rounded-xl space-y-2">
               <p className="font-semibold text-zinc-300 uppercase tracking-wider text-[10px] text-zinc-500 flex items-center gap-1.5">
                 <HardDrive className="w-3.5 h-3.5 text-amber-400" />
-                <span>Supabase Storage Info</span>
+                <span>Info Archiviazione Documento (Predisposizione Supabase)</span>
               </p>
               <div className="space-y-1 font-mono text-[11px] text-zinc-400">
                 <p><strong className="text-zinc-300 font-normal">Bucket:</strong> {document.file.bucket}</p>

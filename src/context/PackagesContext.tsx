@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { PackageItem, PackageDurationUnit, PaymentFrequency, DiscountType } from '../types';
 import { useAthletes } from './AthletesContext';
+import { STORAGE_KEYS, ATHLETE_SUBKEYS } from '../config/storageKeys';
 
 interface PackagesContextType {
   packages: PackageItem[];
@@ -169,7 +170,7 @@ export const PackagesProvider: React.FC<{ children: ReactNode }> = ({ children }
   const { athletes } = useAthletes();
 
   const [packages, setPackages] = useState<PackageItem[]>(() => {
-    const saved = localStorage.getItem('b_packages_list');
+    const saved = localStorage.getItem(STORAGE_KEYS.PACKAGES);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -184,7 +185,7 @@ export const PackagesProvider: React.FC<{ children: ReactNode }> = ({ children }
   });
 
   useEffect(() => {
-    localStorage.setItem('b_packages_list', JSON.stringify(packages));
+    localStorage.setItem(STORAGE_KEYS.PACKAGES, JSON.stringify(packages));
   }, [packages]);
 
   // Check if package is used by any athlete
@@ -205,7 +206,7 @@ export const PackagesProvider: React.FC<{ children: ReactNode }> = ({ children }
     // Also check localStorage subscriptions if present
     try {
       athletes.forEach((a) => {
-        const subSaved = localStorage.getItem(`b_athlete_detail_${a.id}_subscriptions`);
+        const subSaved = localStorage.getItem(ATHLETE_SUBKEYS.detailSubscriptions(a.id));
         if (subSaved) {
           const subs = JSON.parse(subSaved);
           if (Array.isArray(subs)) {

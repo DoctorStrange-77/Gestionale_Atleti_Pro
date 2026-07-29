@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Athlete, PackageItem, SavedReportFilter } from '../../types';
 import { ReportFilterState } from '../../utils/reportCalculations';
+import { STORAGE_KEYS } from '../../config/storageKeys';
 
 interface ReportFiltersBarProps {
   filters: ReportFilterState;
@@ -25,7 +26,7 @@ interface ReportFiltersBarProps {
   coaches: string[];
 }
 
-const LOCAL_STORAGE_KEY = 'doctor_strength_saved_report_filters';
+const LOCAL_STORAGE_KEY = STORAGE_KEYS.SAVED_REPORTS;
 
 export const ReportFiltersBar: React.FC<ReportFiltersBarProps> = ({
   filters,

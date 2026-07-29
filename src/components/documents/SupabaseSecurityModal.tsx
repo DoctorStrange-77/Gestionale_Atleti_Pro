@@ -115,7 +115,12 @@ export const SupabaseSecurityModal: React.FC<SupabaseSecurityModalProps> = ({ is
               <ShieldCheck className="w-5 h-5 stroke-[2.5]" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-zinc-100">Sicurezza Supabase Storage & RLS</h3>
+              <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2 flex-wrap">
+                Sicurezza Supabase Storage & RLS
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  Predisposizione futura — non attiva nella demo
+                </span>
+              </h3>
               <p className="text-xs text-zinc-400">
                 Regole di protezione e simulatore di autorizzazioni per i file
               </p>

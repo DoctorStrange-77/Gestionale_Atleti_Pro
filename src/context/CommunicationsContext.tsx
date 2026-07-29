@@ -8,6 +8,7 @@ import {
   ApiIntegrationConfig,
 } from '../types';
 import { useToast } from './ToastContext';
+import { STORAGE_KEYS } from '../config/storageKeys';
 
 interface CommunicationsContextType {
   communications: CommunicationLog[];
@@ -28,9 +29,9 @@ interface CommunicationsContextType {
 
 const CommunicationsContext = createContext<CommunicationsContextType | undefined>(undefined);
 
-const STORAGE_KEY_COMMUNICATIONS = 'app_communications_v1';
-const STORAGE_KEY_TEMPLATES = 'app_comm_templates_v1';
-const STORAGE_KEY_API_CONFIG = 'app_comm_api_config_v1';
+const STORAGE_KEY_COMMUNICATIONS = STORAGE_KEYS.COMMUNICATIONS;
+const STORAGE_KEY_TEMPLATES = STORAGE_KEYS.COMM_TEMPLATES;
+const STORAGE_KEY_API_CONFIG = STORAGE_KEYS.COMM_API_CONFIG;
 
 export const DEFAULT_TEMPLATES: MessageTemplate[] = [
   {
@@ -249,17 +250,17 @@ const INITIAL_COMMUNICATIONS: CommunicationLog[] = [
 
 const DEFAULT_API_CONFIG: ApiIntegrationConfig = {
   whatsappEnabled: false,
-  whatsappPhoneNumberId: '',
-  whatsappAccessToken: '',
+  whatsappPhoneNumberId: '000000000000000',
+  whatsappAccessToken: 'DEMO_WHATSAPP_TOKEN',
   telegramEnabled: false,
-  telegramBotToken: '',
+  telegramBotToken: 'DEMO_TELEGRAM_TOKEN',
   telegramChatId: '',
   emailEnabled: false,
-  smtpHost: 'smtp.gymmanager.com',
+  smtpHost: 'smtp.example.com',
   smtpPort: 587,
-  smtpUser: 'notifiche@gymmanager.com',
-  webhookUrl: 'https://api.gymmanager.com/v1/webhooks/communications',
-  webhookSecret: 'whsec_9a8b7c6d5e4f3a2b1c0d',
+  smtpUser: 'demo@example.com',
+  webhookUrl: 'https://api.example.com/demo',
+  webhookSecret: 'DEMO_WEBHOOK_SECRET',
 };
 
 export const CommunicationsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -354,7 +355,7 @@ export const CommunicationsProvider: React.FC<{ children: React.ReactNode }> = (
 
   const updateApiConfig = async (updates: Partial<ApiIntegrationConfig>) => {
     setApiConfig((prev) => ({ ...prev, ...updates }));
-    showToast('Configurazione API & Webhook aggiornata', 'success');
+    showToast('Configurazione dimostrativa salvata — nessuna integrazione reale attivata.', 'info');
   };
 
   const renderTemplateText = (template: MessageTemplate, variables: Record<string, string>) => {

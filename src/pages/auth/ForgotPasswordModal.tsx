@@ -48,10 +48,9 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
           <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto">
             <CheckCircle2 className="w-6 h-6" />
           </div>
-          <h4 className="text-base font-bold text-zinc-100">Email Inviata</h4>
-          <p className="text-xs text-zinc-300 leading-relaxed">
-            Abbiamo inviato un link di ripristino all'indirizzo <span className="text-amber-400 font-semibold">{email}</span>.
-            Controlla la tua casella di posta e segui le istruzioni.
+          <h4 className="text-base font-bold text-zinc-100">Funzione Dimostrativa</h4>
+          <p className="text-xs text-zinc-300 leading-relaxed font-medium bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl text-amber-200">
+            Funzione dimostrativa: nessuna email è stata realmente inviata.
           </p>
           <button
             id="btn-close-recovery-success"

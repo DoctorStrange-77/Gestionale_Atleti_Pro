@@ -19,6 +19,7 @@ import { ReportPage } from '../../pages/ReportPage';
 import { CollaboratoriPage } from '../../pages/CollaboratoriPage';
 import { ImpostazioniPage } from '../../pages/ImpostazioniPage';
 import { AtletaPortalePage } from '../../pages/AtletaPortalePage';
+import { DemoBanner } from '../common/DemoBanner';
 import { useAuth } from '../../context/AuthContext';
 
 export const AppLayout: React.FC = () => {
@@ -91,6 +92,9 @@ export const AppLayout: React.FC = () => {
 
       {/* Main App Container */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+        {/* Permanent Demo Mode Banner */}
+        <DemoBanner variant="app" />
+
         {/* Top Org & Role Testing Switcher Bar */}
         <OrgAndRoleSelector />
 

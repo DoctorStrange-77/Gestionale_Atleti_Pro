@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Task, TaskPriority, TaskStatus } from '../types';
 import { useToast } from './ToastContext';
+import { STORAGE_KEYS } from '../config/storageKeys';
 
 interface TasksContextType {
   tasks: Task[];
@@ -12,7 +13,7 @@ interface TasksContextType {
 
 const TasksContext = createContext<TasksContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'app_tasks_v2';
+const STORAGE_KEY = STORAGE_KEYS.TASKS;
 
 const INITIAL_TASKS: Task[] = [
   {
