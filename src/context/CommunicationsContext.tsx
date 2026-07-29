@@ -9,6 +9,7 @@ import {
 } from '../types';
 import { useToast } from './ToastContext';
 import { STORAGE_KEYS } from '../config/storageKeys';
+import { getOwnerDisplayName } from '../lib/ownerProfile';
 
 interface CommunicationsContextType {
   communications: CommunicationLog[];
@@ -236,7 +237,7 @@ const INITIAL_COMMUNICATIONS: CommunicationLog[] = [
     date: '2026-07-20',
     time: '18:45',
     channel: 'incontro',
-    author: 'Salvatore Carotenuto',
+    author: getOwnerDisplayName(),
     subject: 'Incontro de visu al box su preparazione gara',
     summary: 'Riconfermate le pose obbligatorie e la pianificazione di picco carboidrati in vista delle selezioni regionali.',
     outcome: 'completato',
@@ -275,7 +276,12 @@ export const CommunicationsProvider: React.FC<{ children: React.ReactNode }> = (
         console.error('Failed to parse stored communications', e);
       }
     }
-    return INITIAL_COMMUNICATIONS;
+    const ownerFullName = getOwnerDisplayName();
+    return INITIAL_COMMUNICATIONS.map((communication) =>
+      communication.author === 'Proprietario Demo'
+        ? { ...communication, author: ownerFullName }
+        : communication
+    );
   });
 
   const [templates, setTemplates] = useState<MessageTemplate[]>(() => {

@@ -13,6 +13,7 @@ import { useAthletes } from './AthletesContext';
 import { useToast } from './ToastContext';
 import { useAuth } from './AuthContext';
 import { STORAGE_KEYS } from '../config/storageKeys';
+import { getOwnerDisplayName } from '../lib/ownerProfile';
 
 export const MAX_DOCUMENT_SIZE_BYTES = 1 * 1024 * 1024; // 1 MB
 export const ALLOWED_DOCUMENT_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
@@ -80,7 +81,7 @@ const INITIAL_DOCUMENTS: AthleteDocument[] = [
     file: createSampleFile('Contratto_Marco_Rossi_Gold.pdf', 'application/pdf', 1048576, 'documents', 'athletes/ath-1/contratto_gold.pdf'),
     uploadDate: '2024-01-15',
     expiryDate: '2026-11-30',
-    author: 'Salvatore Carotenuto',
+    author: getOwnerDisplayName(),
     authorRole: 'Owner / Amministratore',
     visibility: 'pubblico',
     notes: 'Firmato in sede con allegata ricevuta prima rata.',
@@ -96,7 +97,7 @@ const INITIAL_DOCUMENTS: AthleteDocument[] = [
     file: createSampleFile('Certificato_Agonistico_Rossi.pdf', 'application/pdf', 850000, 'medical', 'athletes/ath-1/cert_agonistico.pdf'),
     uploadDate: '2025-11-30',
     expiryDate: '2026-11-30',
-    author: 'Salvatore Carotenuto',
+    author: getOwnerDisplayName(),
     authorRole: 'Owner',
     visibility: 'solo_staff',
     notes: 'Rilasciato dal Dr. Mantovani - Istituto Medicina dello Sport Roma.',
@@ -127,7 +128,7 @@ const INITIAL_DOCUMENTS: AthleteDocument[] = [
     title: 'Fattura n. 2026-0042 - Semestrale Forza & Massa',
     file: createSampleFile('Fattura_2026_0042_Verdi.pdf', 'application/pdf', 312000, 'documents', 'athletes/ath-3/fattura_0042.pdf'),
     uploadDate: '2026-02-01',
-    author: 'Salvatore Carotenuto',
+    author: getOwnerDisplayName(),
     authorRole: 'Owner',
     visibility: 'riservato',
     notes: 'Prima rata saldata, seconda rata in sollecito.',
@@ -158,7 +159,7 @@ const INITIAL_DOCUMENTS: AthleteDocument[] = [
     title: 'Modulo GDPR Privacy & Trattamento Dati Personali',
     file: createSampleFile('Modulo_GDPR_Marco_Rossi.pdf', 'application/pdf', 450000, 'consents', 'athletes/ath-1/gdpr.pdf'),
     uploadDate: '2024-01-15',
-    author: 'Salvatore Carotenuto',
+    author: getOwnerDisplayName(),
     authorRole: 'Owner',
     visibility: 'pubblico',
     notes: 'Accettato consenso marketing e foto.',
@@ -264,7 +265,12 @@ export const DocumentsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } catch (e) {
       console.error('Error loading documents from storage', e);
     }
-    return INITIAL_DOCUMENTS;
+    const ownerFullName = getOwnerDisplayName();
+    return INITIAL_DOCUMENTS.map((document) =>
+      document.author === 'Proprietario Demo'
+        ? { ...document, author: ownerFullName }
+        : document
+    );
   });
 
   const [consents, setConsents] = useState<AthleteConsent[]>(() => {

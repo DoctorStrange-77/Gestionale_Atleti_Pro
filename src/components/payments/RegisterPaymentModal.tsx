@@ -11,7 +11,6 @@ import {
   AlertCircle,
   Hash,
   FileCheck,
-  Building,
   UploadCloud,
   Clock,
 } from 'lucide-react';
@@ -40,6 +39,7 @@ export const RegisterPaymentModal: React.FC = () => {
   const [numeroDellaRata, setNumeroDellaRata] = useState('Quota Unica');
   const [importoPrevisto, setImportoPrevisto] = useState<number | ''>(300);
   const [importoPagato, setImportoPagato] = useState<number | ''>(200);
+  const [importoRimborsato, setImportoRimborsato] = useState<number | ''>(0);
   const [dataDiScadenza, setDataDiScadenza] = useState(
     new Date().toISOString().split('T')[0]
   );
@@ -74,6 +74,7 @@ export const RegisterPaymentModal: React.FC = () => {
         setNumeroDellaRata(existing.numeroDellaRata || 'Quota Unica');
         setImportoPrevisto(existing.importoPrevisto);
         setImportoPagato(existing.importoPagato);
+        setImportoRimborsato(existing.importoRimborsato || 0);
         setDataDiScadenza(existing.dataDiScadenza);
         setDataDelPagamento(existing.dataDelPagamento || new Date().toISOString().split('T')[0]);
         setMetodoDiPagamento(existing.metodoDiPagamento || 'contanti');
@@ -193,6 +194,7 @@ export const RegisterPaymentModal: React.FC = () => {
       abbonamentoNome: packageName,
       importoPrevisto: numPrevisto,
       importoPagato: numPagato,
+      importoRimborsato: Math.max(0, Number(importoRimborsato) || 0),
       dataDiScadenza,
       dataDelPagamento: numPagato > 0 ? dataDelPagamento : undefined,
       numeroDellaRata,
@@ -263,6 +265,26 @@ export const RegisterPaymentModal: React.FC = () => {
                 ))}
               </select>
             </div>
+
+            {(stato === 'rimborsato' || stato === 'parzialmente rimborsato') && (
+              <div>
+                <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                  Importo rimborsato (€)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={importoRimborsato}
+                  onChange={(e) =>
+                    setImportoRimborsato(
+                      e.target.value === '' ? '' : parseFloat(e.target.value)
+                    )
+                  }
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-xs text-zinc-100 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-semibold text-zinc-300 mb-1.5 flex items-center gap-1.5">

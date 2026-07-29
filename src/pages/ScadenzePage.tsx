@@ -1,21 +1,18 @@
 import React, { useState } from 'react';
 import {
   Clock,
-  AlertTriangle,
   Euro,
   Plus,
   User,
   Calendar,
-  CheckCircle2,
   FileCheck,
-  AlertCircle,
-  ChevronRight,
   ShieldAlert,
   RefreshCw,
 } from 'lucide-react';
 import { usePayments } from '../context/PaymentsContext';
 import { useAthletes } from '../context/AthletesContext';
 import { useAuth } from '../context/AuthContext';
+import { calculatePaymentStatus, isPaymentSuspended } from '../lib/statusEngine';
 
 export const ScadenzePage: React.FC = () => {
   const { payments, openQuickRegisterModal, triggerSystemStatusRecalculation } = usePayments();
@@ -36,17 +33,20 @@ export const ScadenzePage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'rate' | 'certificati'>('rate');
 
   // Filter payments that are due or overdue or pending
-  const duePayments = payments.filter(
-    (p) =>
-      p.stato === 'scaduto' ||
-      p.stato === 'in scadenza' ||
-      p.stato === 'da pagare' ||
-      p.stato === 'pagato parzialmente' ||
-      p.stato === 'sollecitato'
-  );
+  const today = new Date().toISOString().split('T')[0];
+  const duePayments = payments
+    .filter((payment) => !isPaymentSuspended(payment, today))
+    .map((payment) => ({ ...payment, stato: calculatePaymentStatus(payment, today) }))
+    .filter(
+      (payment) =>
+        payment.stato === 'scaduto' ||
+        payment.stato === 'in scadenza' ||
+        payment.stato === 'da pagare' ||
+        payment.stato === 'pagato parzialmente' ||
+        payment.stato === 'sollecitato'
+    );
 
   // Filter athletes with expiring or expired medical certificates
-  const today = new Date().toISOString().split('T')[0];
   const expiringMedical = athletes.filter((a) => {
     if (!a.medicalCertificateExpiry) return true; // missing
     return a.medicalCertificateExpiry <= '2026-12-31';

@@ -3,9 +3,13 @@ import {
   AthleteSubscription,
   PaymentRecord,
   AthleteRenewal,
-  PaymentMethod,
 } from '../types';
-import { isValidPayment, getSubscriptionDurationInMonths } from './dashboardCalculations';
+import {
+  getNetCollectedAmount,
+  getSubscriptionDurationInMonths,
+  isRecurringSubscription,
+  isValidPayment,
+} from './dashboardCalculations';
 
 export interface ReportFilterState {
   dateFilter: string; // '30_giorni' | '3_mesi' | '6_mesi' | 'anno_corrente' | 'anno_precedente' | 'personalizzato'
@@ -120,7 +124,7 @@ export function filterPayments(
   range: DateRange
 ): PaymentRecord[] {
   const athleteMap = new Map(athletes.map((a) => [a.id, a]));
-  const subMap = new Map(subscriptions.map((s) => [s.id, s]));
+  const subMap = new Map(subscriptions.map((subscription) => [subscription.id, subscription]));
 
   return payments.filter((p) => {
     if (!isValidPayment(p)) return false;
@@ -188,8 +192,8 @@ export function generateSpecificReport(
   const filteredCurrentPayments = filterPayments(payments, athletes, subscriptions, filters, range);
   const filteredPrevPayments = filterPayments(payments, athletes, subscriptions, filters, prevRange);
 
-  const curCollected = filteredCurrentPayments.reduce((acc, p) => acc + (p.importoPagato || 0), 0);
-  const prevCollected = filteredPrevPayments.reduce((acc, p) => acc + (p.importoPagato || 0), 0);
+  const curCollected = filteredCurrentPayments.reduce((acc, p) => acc + getNetCollectedAmount(p), 0);
+  const prevCollected = filteredPrevPayments.reduce((acc, p) => acc + getNetCollectedAmount(p), 0);
 
   let growthPercentage: number | undefined = undefined;
   if (filters.comparePeriod && prevCollected > 0) {
@@ -212,7 +216,7 @@ export function generateSpecificReport(
       const day = p.dataDelPagamento || p.dataDiScadenza || 'Senza Data';
       const cur = groupedDataMap.get(day) || { value: 0, subValue: 0 };
       groupedDataMap.set(day, {
-        value: cur.value + (p.importoPagato || 0),
+        value: cur.value + getNetCollectedAmount(p),
         subValue: (cur.subValue || 0) + (p.importoPrevisto || 0),
       });
 
@@ -229,7 +233,7 @@ export function generateSpecificReport(
         paymentMethod: p.metodoDiPagamento || 'contanti',
         status: p.stato,
         amountExpected: p.importoPrevisto,
-        amountPaid: p.importoPagato,
+        amountPaid: getNetCollectedAmount(p),
         amountRemaining: p.importoResiduo,
         notes: p.note,
       });
@@ -243,7 +247,7 @@ export function generateSpecificReport(
       const month = (p.dataDelPagamento || p.dataDiScadenza || '2026-01').substring(0, 7);
       const cur = groupedDataMap.get(month) || { value: 0, subValue: 0 };
       groupedDataMap.set(month, {
-        value: cur.value + (p.importoPagato || 0),
+        value: cur.value + getNetCollectedAmount(p),
         subValue: (cur.subValue || 0) + (p.importoPrevisto || 0),
       });
 
@@ -260,7 +264,7 @@ export function generateSpecificReport(
         paymentMethod: p.metodoDiPagamento || 'contanti',
         status: p.stato,
         amountExpected: p.importoPrevisto,
-        amountPaid: p.importoPagato,
+        amountPaid: getNetCollectedAmount(p),
         amountRemaining: p.importoResiduo,
       });
     });
@@ -273,7 +277,7 @@ export function generateSpecificReport(
       const year = (p.dataDelPagamento || p.dataDiScadenza || '2026').substring(0, 4);
       const cur = groupedDataMap.get(year) || { value: 0, subValue: 0 };
       groupedDataMap.set(year, {
-        value: cur.value + (p.importoPagato || 0),
+        value: cur.value + getNetCollectedAmount(p),
         subValue: (cur.subValue || 0) + (p.importoPrevisto || 0),
       });
 
@@ -290,7 +294,7 @@ export function generateSpecificReport(
         paymentMethod: p.metodoDiPagamento || 'contanti',
         status: p.stato,
         amountExpected: p.importoPrevisto,
-        amountPaid: p.importoPagato,
+        amountPaid: getNetCollectedAmount(p),
         amountRemaining: p.importoResiduo,
       });
     });
@@ -322,7 +326,7 @@ export function generateSpecificReport(
           paymentMethod: p.metodoDiPagamento || 'non specificato',
           status: 'scaduto',
           amountExpected: p.importoPrevisto,
-          amountPaid: p.importoPagato,
+          amountPaid: getNetCollectedAmount(p),
           amountRemaining: p.importoResiduo,
           notes: p.note,
         });
@@ -355,7 +359,7 @@ export function generateSpecificReport(
           paymentMethod: p.metodoDiPagamento || 'programmato',
           status: p.stato,
           amountExpected: p.importoPrevisto,
-          amountPaid: p.importoPagato,
+          amountPaid: getNetCollectedAmount(p),
           amountRemaining: p.importoResiduo,
         });
       });
@@ -508,7 +512,7 @@ export function generateSpecificReport(
       const ath = athleteMap.get(p.atletaId);
       const coach = ath?.assignedCoachName || 'Non Assegnato';
       groupedDataMap.set(coach, {
-        value: (groupedDataMap.get(coach)?.value || 0) + (p.importoPagato || 0),
+        value: (groupedDataMap.get(coach)?.value || 0) + getNetCollectedAmount(p),
       });
 
       items.push({
@@ -523,7 +527,7 @@ export function generateSpecificReport(
         paymentMethod: p.metodoDiPagamento || 'contanti',
         status: p.stato,
         amountExpected: p.importoPrevisto,
-        amountPaid: p.importoPagato,
+        amountPaid: getNetCollectedAmount(p),
         amountRemaining: p.importoResiduo,
       });
     });
@@ -535,7 +539,7 @@ export function generateSpecificReport(
     filteredCurrentPayments.forEach((p) => {
       const pkg = p.abbonamentoNome || 'Senza Pacchetto';
       groupedDataMap.set(pkg, {
-        value: (groupedDataMap.get(pkg)?.value || 0) + (p.importoPagato || 0),
+        value: (groupedDataMap.get(pkg)?.value || 0) + getNetCollectedAmount(p),
       });
 
       const ath = athleteMap.get(p.atletaId);
@@ -551,7 +555,7 @@ export function generateSpecificReport(
         paymentMethod: p.metodoDiPagamento || 'contanti',
         status: p.stato,
         amountExpected: p.importoPrevisto,
-        amountPaid: p.importoPagato,
+        amountPaid: getNetCollectedAmount(p),
         amountRemaining: p.importoResiduo,
       });
     });
@@ -564,7 +568,7 @@ export function generateSpecificReport(
       const ath = athleteMap.get(p.atletaId);
       const serv = ath?.discipline || p.abbonamentoNome || 'Servizio Allenamento';
       groupedDataMap.set(serv, {
-        value: (groupedDataMap.get(serv)?.value || 0) + (p.importoPagato || 0),
+        value: (groupedDataMap.get(serv)?.value || 0) + getNetCollectedAmount(p),
       });
 
       items.push({
@@ -579,7 +583,7 @@ export function generateSpecificReport(
         paymentMethod: p.metodoDiPagamento || 'contanti',
         status: p.stato,
         amountExpected: p.importoPrevisto,
-        amountPaid: p.importoPagato,
+        amountPaid: getNetCollectedAmount(p),
         amountRemaining: p.importoResiduo,
       });
     });
@@ -591,7 +595,7 @@ export function generateSpecificReport(
     filteredCurrentPayments.forEach((p) => {
       const method = p.metodoDiPagamento || 'non specificato';
       groupedDataMap.set(method, {
-        value: (groupedDataMap.get(method)?.value || 0) + (p.importoPagato || 0),
+        value: (groupedDataMap.get(method)?.value || 0) + getNetCollectedAmount(p),
       });
 
       const ath = athleteMap.get(p.atletaId);
@@ -607,7 +611,7 @@ export function generateSpecificReport(
         paymentMethod: method,
         status: p.stato,
         amountExpected: p.importoPrevisto,
-        amountPaid: p.importoPagato,
+        amountPaid: getNetCollectedAmount(p),
         amountRemaining: p.importoResiduo,
       });
     });
@@ -617,7 +621,7 @@ export function generateSpecificReport(
   else if (reportKey === 'mrr') {
     reportName = 'Monthly Recurring Revenue (MRR)';
     subscriptions
-      .filter((s) => s.status === 'attivo' || s.status === 'in_scadenza')
+      .filter(isRecurringSubscription)
       .forEach((s) => {
         const monthlyVal = s.agreedPrice / getSubscriptionDurationInMonths(s);
         groupedDataMap.set(s.packageName, {
@@ -647,7 +651,7 @@ export function generateSpecificReport(
   else if (reportKey === 'arr') {
     reportName = 'Annual Recurring Revenue (ARR)';
     subscriptions
-      .filter((s) => s.status === 'attivo' || s.status === 'in_scadenza')
+      .filter(isRecurringSubscription)
       .forEach((s) => {
         const annualVal = (s.agreedPrice / getSubscriptionDurationInMonths(s)) * 12;
         groupedDataMap.set(s.packageName, {
@@ -708,7 +712,7 @@ export function generateSpecificReport(
     reportName = 'Valore Medio per Atleta (LTV / ARPU)';
     athletes.forEach((a) => {
       const athletePayments = payments.filter((p) => p.atletaId === a.id && isValidPayment(p));
-      const totalPaid = athletePayments.reduce((acc, p) => acc + (p.importoPagato || 0), 0);
+      const totalPaid = athletePayments.reduce((acc, p) => acc + getNetCollectedAmount(p), 0);
 
       groupedDataMap.set(a.firstName + ' ' + a.lastName, {
         value: totalPaid,
@@ -749,7 +753,7 @@ export function generateSpecificReport(
         paymentMethod: p.metodoDiPagamento || 'contanti',
         status: p.stato,
         amountExpected: p.importoPrevisto,
-        amountPaid: p.importoPagato,
+        amountPaid: getNetCollectedAmount(p),
         amountRemaining: p.importoResiduo,
       });
     });

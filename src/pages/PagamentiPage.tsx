@@ -12,21 +12,18 @@ import {
   FileText,
   User,
   Paperclip,
-  ArrowUpRight,
   TrendingUp,
   History,
   ShieldCheck,
-  Building,
   CreditCard,
-  Hash,
-  Download,
   Calendar,
   RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { getNetCollectedAmount } from '../utils/dashboardCalculations';
 import { usePayments } from '../context/PaymentsContext';
 import { RoleGuard } from '../components/auth/RoleGuard';
-import { PaymentRecord, PaymentStatus, PaymentMethod } from '../types';
+import { PaymentRecord, PaymentStatus } from '../types';
 
 export const PagamentiPage: React.FC = () => {
   const { user } = useAuth();
@@ -56,7 +53,7 @@ export const PagamentiPage: React.FC = () => {
   const [selectedPaymentDetail, setSelectedPaymentDetail] = useState<PaymentRecord | null>(null);
 
   // Financial KPI calculations
-  const totalIncassato = payments.reduce((acc, p) => acc + (p.importoPagato || 0), 0);
+  const totalIncassato = payments.reduce((acc, payment) => acc + getNetCollectedAmount(payment), 0);
   const totalResiduoInAttesa = payments.reduce(
     (acc, p) =>
       p.stato !== 'annullato' && p.stato !== 'rimborsato' && p.stato !== 'fallito'

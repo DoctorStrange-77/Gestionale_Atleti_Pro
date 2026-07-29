@@ -8,9 +8,7 @@ import {
   CheckSquare,
   ChevronRight,
   Euro,
-  UserCheck,
   PhoneCall,
-  User,
 } from 'lucide-react';
 import {
   Athlete,
@@ -22,6 +20,7 @@ import {
   AthleteDocument,
 } from '../../types';
 import { isValidPayment } from '../../utils/dashboardCalculations';
+import { isPaymentSuspended } from '../../lib/statusEngine';
 
 export type QuickSectionKey =
   | 'scadenze_oggi'
@@ -46,12 +45,10 @@ interface QuickSectionsWidgetProps {
 }
 
 export const QuickSectionsWidget: React.FC<QuickSectionsWidgetProps> = ({
-  athletes,
   subscriptions,
   payments,
   renewals,
   tasks,
-  documents,
   alerts,
   onNavigate,
   openQuickRegisterModal,
@@ -70,7 +67,9 @@ export const QuickSectionsWidget: React.FC<QuickSectionsWidgetProps> = ({
   const day15Str = getFutureDateStr(15);
   const day30Str = getFutureDateStr(30);
 
-  const validPayments = payments.filter(isValidPayment);
+  const validPayments = payments.filter(
+    (payment) => isValidPayment(payment) && !isPaymentSuspended(payment, todayStr)
+  );
 
   // 1. Scadenze di oggi
   const paymentsOggi = validPayments.filter(

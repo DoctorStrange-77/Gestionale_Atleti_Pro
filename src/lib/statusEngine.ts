@@ -9,6 +9,17 @@ import {
 } from '../types';
 import { supabase, isSupabaseConfigured } from './supabase';
 
+export function isPaymentSuspended(
+  payment: Pick<PaymentRecord, 'suspendedFrom' | 'suspendedUntil'>,
+  todayStr: string = new Date().toISOString().split('T')[0]
+): boolean {
+  return Boolean(
+    payment.suspendedUntil &&
+    (!payment.suspendedFrom || payment.suspendedFrom <= todayStr) &&
+    payment.suspendedUntil >= todayStr
+  );
+}
+
 /**
  * REGOLE DEI PAGAMENTI:
  * - prima del periodo di preavviso (> 7 giorni prima della scadenza): programmato
@@ -44,6 +55,11 @@ export function calculatePaymentStatus(
   // 2. Pagamento incompleto
   if (pagato > 0 && pagato < previsto) {
     return 'pagato parzialmente';
+  }
+
+  // During a pause an unpaid installment remains scheduled and must not become overdue.
+  if (isPaymentSuspended(payment, todayStr)) {
+    return 'programmato';
   }
 
   // 3. Unpaid or zero-paid items: check expiry date
@@ -93,7 +109,10 @@ export function calculateAthleteFinancialStatus(
 
   // Exclude cancelled / refunded items from active financial obligations
   const activePayments = athletePayments.filter(
-    (p) => p.stato !== 'annullato' && p.stato !== 'rimborsato'
+    (p) =>
+      p.stato !== 'annullato' &&
+      p.stato !== 'rimborsato' &&
+      !isPaymentSuspended(p)
   );
 
   if (activePayments.length === 0) {

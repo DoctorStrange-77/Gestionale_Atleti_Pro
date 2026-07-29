@@ -5,14 +5,14 @@ import {
   SubscriptionPause,
   PauseExpiryOption,
   PauseInstallmentsOption,
-  AthletePaymentStatus,
 } from '../types';
 import { useAthletes } from './AthletesContext';
 import { useSubscriptions } from './SubscriptionsContext';
 import { usePayments } from './PaymentsContext';
 import { STORAGE_KEYS } from '../config/storageKeys';
 import { useToast } from './ToastContext';
-import { calculateAthleteFinancialStatus } from '../lib/statusEngine';
+import { calculateAthleteFinancialStatus, calculatePaymentStatus } from '../lib/statusEngine';
+import { getOwnerDisplayName } from '../lib/ownerProfile';
 
 interface ConfirmRenewalParams {
   renewalId: string;
@@ -94,7 +94,7 @@ const SEED_RENEWALS: AthleteRenewal[] = [
     subscriptionId: 'sub-3',
     currentPackageName: 'Semestrale Forza & Massa',
     price: 540,
-    coachName: 'Salvatore Carotenuto',
+    coachName: getOwnerDisplayName(),
     endDate: '2026-07-15',
     daysRemaining: -14,
     paymentStatus: 'pagamento scaduto',
@@ -102,7 +102,7 @@ const SEED_RENEWALS: AthleteRenewal[] = [
     lastCommunicationNote: 'Telefono: Avvisato della rata scaduta e chiesto del rinnovo.',
     nextAction: 'Chiamata di verifica e proposta rinnovo con dilazione',
     nextActionDate: '2026-07-31',
-    responsibleName: 'Salvatore Carotenuto',
+    responsibleName: getOwnerDisplayName(),
     status: 'da contattare',
     notes: 'Motivo del ritardo: trasferta di lavoro a Napoli.',
     createdAt: '2026-07-15T09:00:00.000Z',
@@ -115,7 +115,7 @@ const SEED_RENEWALS: AthleteRenewal[] = [
     subscriptionId: 'sub-1',
     currentPackageName: 'Abbonamento Annuale Gold Power',
     price: 780,
-    coachName: 'Salvatore Carotenuto',
+    coachName: getOwnerDisplayName(),
     endDate: '2026-12-31',
     daysRemaining: 155,
     paymentStatus: 'regolare',
@@ -123,7 +123,7 @@ const SEED_RENEWALS: AthleteRenewal[] = [
     lastCommunicationNote: 'Check-in mensile: Molto soddisfatto del programma.',
     nextAction: 'Proporre rinnovo anticipato bloccando il prezzo a Novembre',
     nextActionDate: '2026-11-01',
-    responsibleName: 'Salvatore Carotenuto',
+    responsibleName: getOwnerDisplayName(),
     status: 'interessato',
     notes: 'Atleta storico molto fedele.',
     createdAt: '2026-06-01T08:00:00.000Z',
@@ -184,7 +184,7 @@ const SEED_PAUSES: SubscriptionPause[] = [
     actualEndDate: '2026-05-24',
     reason: 'Vacanze e trasferta lavorativa all\'estero',
     pauseDays: 14,
-    authorization: 'Salvatore Carotenuto (Direzione)',
+    authorization: `${getOwnerDisplayName()} (Direzione)`,
     notes: 'Pausa concordata prima della partenza. Scadenza prorogata di 14 giorni.',
     expiryOption: 'proroga',
     installmentsOption: 'sospendi',
@@ -197,16 +197,33 @@ export const RenewalsProvider: React.FC<{ children: ReactNode }> = ({ children }
   const { showToast } = useToast();
   const { athletes, addTimelineEvent } = useAthletes();
   const { subscriptions, addSubscription, updateSubscription } = useSubscriptions();
-  const { payments, createPaymentRecord, addAuditLog } = usePayments();
+  const { payments, createPaymentRecord, savePaymentRecord, addAuditLog } = usePayments();
 
   const [renewals, setRenewals] = useState<AthleteRenewal[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.RENEWALS);
-    return saved ? JSON.parse(saved) : SEED_RENEWALS;
+    if (saved) return JSON.parse(saved);
+    const ownerFullName = getOwnerDisplayName();
+    return SEED_RENEWALS.map((renewal) => ({
+      ...renewal,
+      coachName: renewal.coachName === 'Proprietario Demo' ? ownerFullName : renewal.coachName,
+      responsibleName:
+        renewal.responsibleName === 'Proprietario Demo'
+          ? ownerFullName
+          : renewal.responsibleName,
+    }));
   });
 
   const [pauses, setPauses] = useState<SubscriptionPause[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.PAUSES);
-    return saved ? JSON.parse(saved) : SEED_PAUSES;
+    if (saved) return JSON.parse(saved);
+    const ownerFullName = getOwnerDisplayName();
+    return SEED_PAUSES.map((pause) => ({
+      ...pause,
+      authorization:
+        pause.authorization === 'Proprietario Demo (Direzione)'
+          ? `${ownerFullName} (Direzione)`
+          : pause.authorization,
+    }));
   });
 
   useEffect(() => {
@@ -493,6 +510,8 @@ export const RenewalsProvider: React.FC<{ children: ReactNode }> = ({ children }
 
     setPauses((prev) => [newPause, ...prev]);
 
+    let installmentsSummary = 'Rate lasciate attive senza modifiche.';
+
     // 1. Update Subscription Expiry if 'proroga' chosen
     const targetSub = subscriptions.find((s) => s.id === subscriptionId);
     if (targetSub) {
@@ -512,31 +531,104 @@ export const RenewalsProvider: React.FC<{ children: ReactNode }> = ({ children }
         status: isCurrentlyPaused ? 'sospeso' : targetSub.status,
       });
 
-      // 2. Handle Payment Installments Options
-      if (installmentsOption === 'riprogramma') {
-        // Shift pending/future payment records due after pause start date by pauseDays
-        const subPayments = payments.filter((p) => p.abbonamentoId === subscriptionId && p.stato !== 'pagato');
-        subPayments.forEach((p) => {
-          if (p.dataDiScadenza >= startDate) {
-            const currentDue = new Date(p.dataDiScadenza);
-            currentDue.setDate(currentDue.getDate() + pauseDays);
-            const newDueStr = currentDue.toISOString().split('T')[0];
+      // 2. Handle Payment Installments Options. "attive" intentionally leaves them untouched.
+      const unsettledPayments = payments.filter(
+        (payment) =>
+          payment.abbonamentoId === subscriptionId &&
+          payment.importoResiduo > 0 &&
+          payment.stato !== 'annullato' &&
+          payment.stato !== 'rimborsato'
+      );
+      let changedInstallments = 0;
 
-            // Add audit log
-            addAuditLog({
-              pagamentoId: p.id,
-              atletaId: athleteId,
-              atletaNome: athleteName,
-              abbonamentoNome: p.abbonamentoNome,
-              azione: 'Riprogrammazione Rata per Pausa Abbonamento',
-              valorePrecedente: `Scadenza: ${p.dataDiScadenza}`,
-              nuovoValore: `Scadenza prorogata: ${newDueStr} (+${pauseDays} gg pausa)`,
-              autore: authorization,
-              data: new Date().toISOString().split('T')[0],
-              ora: new Date().toTimeString().split(' ')[0],
-            });
-          }
+      if (installmentsOption === 'riprogramma') {
+        unsettledPayments.forEach((payment) => {
+          const previousDueDate = payment.dataDiScadenza;
+          const shiftedDueDate = new Date(`${previousDueDate}T12:00:00`);
+          shiftedDueDate.setDate(shiftedDueDate.getDate() + pauseDays);
+          const newDueDate = shiftedDueDate.toISOString().split('T')[0];
+          const updatedPayment = {
+            ...payment,
+            dataDiScadenza: newDueDate,
+            suspendedFrom: undefined,
+            suspendedUntil: undefined,
+          };
+
+          savePaymentRecord(
+            {
+              ...updatedPayment,
+              stato: calculatePaymentStatus(updatedPayment),
+            },
+            authorization
+          );
+          addAuditLog({
+            pagamentoId: payment.id,
+            atletaId: athleteId,
+            atletaNome: athleteName,
+            abbonamentoNome: payment.abbonamentoNome,
+            azione: 'Riprogrammazione Rata per Pausa Abbonamento',
+            valorePrecedente: `Data di scadenza: ${previousDueDate}`,
+            nuovoValore: `Data di scadenza: ${newDueDate}`,
+            autore: authorization,
+            data: new Date().toISOString().split('T')[0],
+            ora: new Date().toTimeString().split(' ')[0],
+          });
+          changedInstallments++;
         });
+      } else if (installmentsOption === 'sospendi') {
+        unsettledPayments.forEach((payment) => {
+          const updatedPayment = {
+            ...payment,
+            suspendedFrom: startDate,
+            suspendedUntil: expectedEndDate,
+          };
+          savePaymentRecord(
+            {
+              ...updatedPayment,
+              stato: calculatePaymentStatus(updatedPayment),
+            },
+            authorization
+          );
+          addAuditLog({
+            pagamentoId: payment.id,
+            atletaId: athleteId,
+            atletaNome: athleteName,
+            abbonamentoNome: payment.abbonamentoNome,
+            azione: 'Sospensione Rata per Pausa Abbonamento',
+            valorePrecedente: `Sospensione: ${payment.suspendedFrom || 'non sospesa'} → ${payment.suspendedUntil || 'non sospesa'}`,
+            nuovoValore: `Sospensione: ${startDate} → ${expectedEndDate}`,
+            autore: authorization,
+            data: new Date().toISOString().split('T')[0],
+            ora: new Date().toTimeString().split(' ')[0],
+          });
+          changedInstallments++;
+        });
+      }
+
+      if (changedInstallments > 0) {
+        addTimelineEvent(athleteId, {
+          type: 'pagamento',
+          title:
+            installmentsOption === 'riprogramma'
+              ? 'Rate riprogrammate per pausa'
+              : 'Rate sospese per pausa',
+          description:
+            installmentsOption === 'riprogramma'
+              ? `${changedInstallments} rate non saldate spostate di ${pauseDays} giorni.`
+              : `${changedInstallments} rate non saldate sospese fino al ${expectedEndDate}.`,
+          authorName: authorization,
+        });
+      }
+      if (installmentsOption === 'riprogramma') {
+        installmentsSummary =
+          changedInstallments > 0
+            ? `${changedInstallments} rate riprogrammate di ${pauseDays} giorni.`
+            : 'Nessuna rata non saldata da riprogrammare.';
+      } else if (installmentsOption === 'sospendi') {
+        installmentsSummary =
+          changedInstallments > 0
+            ? `${changedInstallments} rate sospese fino al ${expectedEndDate}.`
+            : 'Nessuna rata non saldata da sospendere.';
       }
     }
 
@@ -544,7 +636,7 @@ export const RenewalsProvider: React.FC<{ children: ReactNode }> = ({ children }
     addTimelineEvent(athleteId, {
       type: 'sospensione',
       title: 'Pausa Abbonamento Registrata',
-      description: `Registrata pausa di ${pauseDays} giorni dal ${startDate} al ${expectedEndDate}. Motivazione: ${reason}. Scadenza: ${expiryOption === 'proroga' ? 'Prorogata' : 'Invariata'}. Rate: ${installmentsOption.toUpperCase()}.`,
+      description: `Registrata pausa di ${pauseDays} giorni dal ${startDate} al ${expectedEndDate}. Motivazione: ${reason}. Scadenza: ${expiryOption === 'proroga' ? 'Prorogata' : 'Invariata'}. ${installmentsSummary}`,
       authorName: authorization,
     });
 

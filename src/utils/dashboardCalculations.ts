@@ -7,6 +7,7 @@ import {
   DocumentAlert,
   AthleteDocument,
 } from '../types';
+import { isPaymentSuspended } from '../lib/statusEngine';
 
 export type TimeFilterOption =
   | '30_giorni'
@@ -97,6 +98,14 @@ export function isValidPayment(payment: PaymentRecord): boolean {
   return true;
 }
 
+export function getNetCollectedAmount(payment: PaymentRecord): number {
+  if (payment.stato === 'rimborsato') return 0;
+  return Math.max(
+    0,
+    (Number(payment.importoPagato) || 0) - (Number(payment.importoRimborsato) || 0)
+  );
+}
+
 /**
  * Helper to calculate subscription monthly duration
  */
@@ -120,6 +129,20 @@ export function getSubscriptionDurationInMonths(sub: AthleteSubscription): numbe
   }
 
   return 1;
+}
+
+export function isRecurringSubscription(subscription: AthleteSubscription): boolean {
+  const nonRecurringDurationUnits = new Set([
+    'servizio_singolo',
+    'numero_consulenze',
+    'numero_checkin',
+  ]);
+  return (
+    (subscription.status === 'attivo' || subscription.status === 'in_scadenza') &&
+    subscription.paymentFrequency !== 'unica_soluzione' &&
+    !nonRecurringDurationUnits.has(subscription.durationUnit) &&
+    !subscription.packageName.toLowerCase().includes('carnet')
+  );
 }
 
 export interface CalculatedDashboardMetrics {
@@ -151,8 +174,8 @@ export function computeDashboardMetrics(
   payments: PaymentRecord[],
   renewals: AthleteRenewal[],
   tasks: Task[],
-  documents: AthleteDocument[],
-  alerts: DocumentAlert[],
+  _documents: AthleteDocument[],
+  _alerts: DocumentAlert[],
   range: DateRange
 ): CalculatedDashboardMetrics {
   const todayStr = new Date().toISOString().split('T')[0];
@@ -178,12 +201,14 @@ export function computeDashboardMetrics(
   ).length;
 
   // 5. Atleti Persi (inattivo, non_rinnovato, archiviato)
-  const atletiPersi = athletes.filter(
+  const lostAthletesInRange = athletes.filter(
     (a) =>
-      a.status === 'inattivo' ||
-      a.status === 'non_rinnovato' ||
-      a.status === 'archiviato'
-  ).length;
+      (a.status === 'inattivo' ||
+        a.status === 'non_rinnovato' ||
+        a.status === 'archiviato') &&
+      isDateInRange(a.updatedAt, range.startDate, range.endDate)
+  );
+  const atletiPersi = lostAthletesInRange.length;
 
   // 6. Abbonamenti in Scadenza (nei prossimi 30 giorni)
   const in30Days = new Date();
@@ -198,7 +223,9 @@ export function computeDashboardMetrics(
   ).length;
 
   // Filter valid payments only
-  const validPayments = payments.filter(isValidPayment);
+  const validPayments = payments.filter(
+    (payment) => isValidPayment(payment) && !isPaymentSuspended(payment, todayStr)
+  );
 
   // 7. Pagamenti in Scadenza
   const pagamentiInScadenza = validPayments.filter(
@@ -222,17 +249,17 @@ export function computeDashboardMetrics(
   const incassatoNelMese = validPayments
     .filter((p) => {
       const pDate = p.dataDelPagamento || p.createdAt || '';
-      return pDate.startsWith(currentMonthStr) && (p.importoPagato || 0) > 0;
+      return pDate.startsWith(currentMonthStr) && getNetCollectedAmount(p) > 0;
     })
-    .reduce((acc, p) => acc + (p.importoPagato || 0), 0);
+    .reduce((acc, p) => acc + getNetCollectedAmount(p), 0);
 
   // 11. Incassato nell'Anno (current year)
   const incassatoNellAnno = validPayments
     .filter((p) => {
       const pDate = p.dataDelPagamento || p.createdAt || '';
-      return pDate.startsWith(currentYearStr) && (p.importoPagato || 0) > 0;
+      return pDate.startsWith(currentYearStr) && getNetCollectedAmount(p) > 0;
     })
-    .reduce((acc, p) => acc + (p.importoPagato || 0), 0);
+    .reduce((acc, p) => acc + getNetCollectedAmount(p), 0);
 
   // 12. Entrate Previste (in selected range)
   const entratePreviste = validPayments
@@ -242,7 +269,7 @@ export function computeDashboardMetrics(
   // Total collected in selected range
   const incassatoNelPeriodo = validPayments
     .filter((p) => isDateInRange(p.dataDelPagamento || p.createdAt, range.startDate, range.endDate))
-    .reduce((acc, p) => acc + (p.importoPagato || 0), 0);
+    .reduce((acc, p) => acc + getNetCollectedAmount(p), 0);
 
   // 13. Insoluti (Overdue unpaid amounts)
   const insoluti = validPayments
@@ -258,22 +285,40 @@ export function computeDashboardMetrics(
   const tassoDiIncasso = Math.min(100, Math.round((incassatoNelPeriodo / basePreviste) * 100));
 
   // 15. Tasso di Rinnovo %
-  const rinnovatiCount = renewals.filter(
-    (r) => r.status === 'confermato' || r.status === 'rinnovato'
+  const renewalsInRange = renewals.filter((renewal) =>
+    isDateInRange(
+      renewal.updatedAt || renewal.lastCommunicationDate || renewal.endDate,
+      range.startDate,
+      range.endDate
+    )
+  );
+  const rinnovatiCount = renewalsInRange.filter(
+    (renewal) => renewal.status === 'confermato' || renewal.status === 'rinnovato'
   ).length;
-  const totalScadutiOrRenewals = Math.max(1, renewals.length);
-  const tassoDiRinnovo = Math.min(100, Math.round((rinnovatiCount / totalScadutiOrRenewals) * 100));
+  const tassoDiRinnovo =
+    renewalsInRange.length > 0
+      ? Math.min(100, Math.round((rinnovatiCount / renewalsInRange.length) * 100))
+      : 0;
 
   // 16. Churn Rate %
-  const totalGestiti = Math.max(1, athletes.length);
-  const churnRate = Number(((atletiPersi / totalGestiti) * 100).toFixed(1));
+  const retainedAthletes = athletes.filter(
+    (athlete) =>
+      athlete.status === 'attivo' ||
+      athlete.status === 'sospeso' ||
+      athlete.status === 'in_pausa'
+  ).length;
+  const estimatedAthletesAtRisk = retainedAthletes + atletiPersi;
+  const churnRate =
+    estimatedAthletesAtRisk > 0
+      ? Number(((atletiPersi / estimatedAthletesAtRisk) * 100).toFixed(1))
+      : 0;
 
   // 17. Valore Medio per Atleta (ARPU)
   const baseAtleti = atletiAttivi > 0 ? atletiAttivi : 1;
   const valoreMedioPerAtleta = Math.round(incassatoNellAnno / baseAtleti);
 
   // 18. MRR (Monthly Recurring Revenue)
-  const activeSubs = subscriptions.filter((s) => s.status === 'attivo' || s.status === 'in_scadenza');
+  const activeSubs = subscriptions.filter(isRecurringSubscription);
   const mrr = activeSubs.reduce((acc, s) => {
     const monthlyVal = (s.agreedPrice || s.listPrice || 0) / getSubscriptionDurationInMonths(s);
     return acc + monthlyVal;

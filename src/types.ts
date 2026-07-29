@@ -77,6 +77,17 @@ export interface UserProfile {
   organizations?: Organization[];
 }
 
+export interface LocalOwnerProfile {
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  email?: string;
+  organizationName?: string;
+  role: 'proprietario';
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
 export interface ToastMessage {
@@ -447,8 +458,11 @@ export interface PaymentRecord {
   abbonamentoNome?: string;
   importoPrevisto: number;
   importoPagato: number;
+  importoRimborsato?: number;
   importoResiduo: number; // calculated: importoPrevisto - importoPagato
   dataDiScadenza: string; // YYYY-MM-DD
+  suspendedFrom?: string; // YYYY-MM-DD, inizio sospensione programmata
+  suspendedUntil?: string; // YYYY-MM-DD, rata esclusa dalle scadenze fino a questa data inclusa
   dataDelPagamento?: string; // YYYY-MM-DD
   numeroDellaRata?: string; // e.g. "Rata 1 di 12", "Acconto", "Quota Unica"
   metodoDiPagamento?: PaymentMethod;

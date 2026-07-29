@@ -3,6 +3,7 @@ import { Athlete, AthleteFormData, AthleteStatus, AthletePaymentStatus, Timeline
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { STORAGE_KEYS, ATHLETE_SUBKEYS } from '../config/storageKeys';
+import { getOwnerDisplayName, LOCAL_OWNER_ID } from '../lib/ownerProfile';
 
 interface AthletesContextType {
   athletes: Athlete[];
@@ -43,8 +44,8 @@ const INITIAL_ATHLETES: Athlete[] = [
     preferredChannel: 'whatsapp',
     joinDate: '2024-01-15',
     acquisitionSource: 'social',
-    assignedCoachId: 'demo-user-owner',
-    assignedCoachName: 'Salvatore Carotenuto',
+    assignedCoachId: LOCAL_OWNER_ID,
+    assignedCoachName: getOwnerDisplayName(),
     goal: 'Aumento massa muscolare e forza nello squat',
     discipline: 'Powerlifting',
     status: 'attivo',
@@ -109,8 +110,8 @@ const INITIAL_ATHLETES: Athlete[] = [
     preferredChannel: 'telefono',
     joinDate: '2024-02-01',
     acquisitionSource: 'sito_web',
-    assignedCoachId: 'demo-user-owner',
-    assignedCoachName: 'Salvatore Carotenuto',
+    assignedCoachId: LOCAL_OWNER_ID,
+    assignedCoachName: getOwnerDisplayName(),
     goal: 'Ricomposizione corporea e mobilità',
     discipline: 'Bodybuilding',
     status: 'moroso',
@@ -208,8 +209,8 @@ const INITIAL_ATHLETES: Athlete[] = [
     preferredChannel: 'email',
     joinDate: '2026-07-27',
     acquisitionSource: 'passaparola',
-    assignedCoachId: 'demo-user-owner',
-    assignedCoachName: 'Salvatore Carotenuto',
+    assignedCoachId: LOCAL_OWNER_ID,
+    assignedCoachName: getOwnerDisplayName(),
     goal: 'Ricondizionamento fisico post-gravidanza',
     discipline: 'Fitness & Posturale',
     status: 'onboarding',
@@ -274,8 +275,8 @@ const INITIAL_ATHLETES: Athlete[] = [
     preferredChannel: 'email',
     joinDate: '2024-03-01',
     acquisitionSource: 'passaparola',
-    assignedCoachId: 'demo-user-owner',
-    assignedCoachName: 'Salvatore Carotenuto',
+    assignedCoachId: LOCAL_OWNER_ID,
+    assignedCoachName: getOwnerDisplayName(),
     goal: 'Ipertrofia arti inferiori',
     discipline: 'Bodybuilding',
     status: 'non_rinnovato',
@@ -406,7 +407,12 @@ export const AthletesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } catch (e) {
       console.error('Failed to load athletes from localStorage', e);
     }
-    return INITIAL_ATHLETES;
+    const ownerFullName = getOwnerDisplayName();
+    return INITIAL_ATHLETES.map((athlete) =>
+      athlete.assignedCoachId === LOCAL_OWNER_ID
+        ? { ...athlete, assignedCoachName: ownerFullName }
+        : athlete
+    );
   });
 
   useEffect(() => {

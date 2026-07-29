@@ -19,18 +19,13 @@ import {
   Download,
   Share2,
   History,
-  CheckCircle2,
   Plus,
   Trash2,
-  Edit2,
   Crown,
-  Eye,
   FileSpreadsheet,
-  FileText,
   Code,
   Save,
   RotateCcw,
-  Sparkles,
   Search,
   Check,
   AlertCircle,
@@ -39,11 +34,18 @@ import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { usePackages } from '../context/PackagesContext';
 import { useToast } from '../context/ToastContext';
-import { isSupabaseConfigured } from '../lib/supabase';
 import { ROLE_DEFINITIONS } from '../lib/permissions';
 import { SqlScriptModal } from '../components/sql/SqlScriptModal';
-import { UserRole, CustomLabelTag, MessageTemplateSetting, PaymentMethodSetting } from '../types';
-import { clearAppLocalStorage, exportAppLocalStorage, importAppLocalStorage } from '../config/storageKeys';
+import { UserRole, CustomLabelTag } from '../types';
+import {
+  clearAppDemoData,
+  exportAppLocalStorage,
+  importAppLocalStorage,
+  isAppStorageKey,
+  isQuotaExceededError,
+  STORAGE_KEYS,
+} from '../config/storageKeys';
+import { DEFAULT_ORGANIZATION_NAME } from '../lib/ownerProfile';
 
 type SettingsSectionId =
   | 'organizzazione'
@@ -76,8 +78,17 @@ const COLOR_PRESETS = [
 ];
 
 export const ImpostazioniPage: React.FC = () => {
-  const { user, toggleCoachFinancials, members, inviteMember, updateMemberRole, toggleMemberFinancials } = useAuth();
-  const { showSuccess, showError, showInfo } = useToast();
+  const {
+    user,
+    toggleCoachFinancials,
+    members,
+    inviteMember,
+    updateMemberRole,
+    ownerProfile,
+    updateOwnerProfile,
+    logout,
+  } = useAuth();
+  const { showSuccess, showError } = useToast();
   const {
     settings,
     auditLogs,
@@ -86,9 +97,9 @@ export const ImpostazioniPage: React.FC = () => {
     updateTaskCategories,
     updateTags,
     updateReminderRules,
-    updateMessageTemplates,
     updatePrivacySettings,
     updateApiIntegrations,
+    addAuditLog,
     clearAuditLogs,
     resetToDefaults,
   } = useSettings();
@@ -114,6 +125,11 @@ export const ImpostazioniPage: React.FC = () => {
   const [currency, setCurrency] = useState(settings.currency);
   const [timezone, setTimezone] = useState(settings.timezone);
   const [dateFormat, setDateFormat] = useState(settings.dateFormat);
+  const [ownerFirstName, setOwnerFirstName] = useState(ownerProfile.firstName);
+  const [ownerLastName, setOwnerLastName] = useState(ownerProfile.lastName);
+  const [ownerEmail, setOwnerEmail] = useState(ownerProfile.email || '');
+  const [ownerOrganization, setOwnerOrganization] = useState(ownerProfile.organizationName || '');
+  const [ownerProfileError, setOwnerProfileError] = useState('');
 
   // State for adding new Task Category
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -230,16 +246,78 @@ export const ImpostazioniPage: React.FC = () => {
 
   // Ripristina dati demo
   const handleResetDemoData = () => {
-    const confirmed = window.confirm(
-      'Sei sicuro di voler ripristinare i dati dimostrativi? Tutti i dati locali correnti verranno eliminati e verranno ricaricati i dati di esempio iniziali.'
+    const firstConfirmation = window.confirm(
+      'Questa operazione eliminerà tutte le modifiche effettuate nella demo. Continuare?'
     );
-    if (!confirmed) return;
+    if (!firstConfirmation) return;
 
-    clearAppLocalStorage();
+    const finalConfirmation = window.confirm(
+      'Conferma definitiva: ripristinare i dati dimostrativi iniziali?'
+    );
+    if (!finalConfirmation) return;
+
+    clearAppDemoData();
+    if (ownerProfile.organizationName) {
+      localStorage.setItem(
+        STORAGE_KEYS.SETTINGS,
+        JSON.stringify({ businessName: ownerProfile.organizationName })
+      );
+    }
     showSuccess('Dati Demo Ripristinati', 'I dati dell\'applicazione sono stati ripristinati alle impostazioni dimostrative iniziali.');
     setTimeout(() => {
       window.location.reload();
     }, 800);
+  };
+
+  const handleSaveOwnerProfile = (event: React.FormEvent) => {
+    event.preventDefault();
+    const firstName = ownerFirstName.trim();
+    const lastName = ownerLastName.trim();
+    const emailValue = ownerEmail.trim();
+    if (firstName.length < 2 || lastName.length < 2) {
+      setOwnerProfileError('Nome e cognome devono contenere almeno 2 caratteri.');
+      return;
+    }
+    if (emailValue && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+      setOwnerProfileError('Inserisci un indirizzo email valido.');
+      return;
+    }
+    setOwnerProfileError('');
+    const updatedProfile = {
+      ...ownerProfile,
+      firstName,
+      lastName,
+      fullName: `${firstName} ${lastName}`,
+      email: emailValue || undefined,
+      organizationName: ownerOrganization.trim() || undefined,
+      updatedAt: new Date().toISOString(),
+    };
+    updateOwnerProfile(updatedProfile);
+    updateSettings({
+      businessName: updatedProfile.organizationName || DEFAULT_ORGANIZATION_NAME,
+    });
+    addAuditLog(
+      'Aggiornamento Profilo Proprietario',
+      `Profilo proprietario aggiornato per ${updatedProfile.fullName}`
+    );
+    showSuccess('Profilo Proprietario Salvato', 'Le informazioni sono state aggiornate nell’interfaccia.');
+  };
+
+  const handleRemoveOwnerConfiguration = async () => {
+    const firstConfirmation = window.confirm(
+      'Questa operazione rimuoverà il profilo proprietario locale. Continuare?'
+    );
+    if (!firstConfirmation) return;
+    const finalConfirmation = window.confirm(
+      'Conferma definitiva: vuoi eliminare il proprietario configurato e ripetere la configurazione iniziale?'
+    );
+    if (!finalConfirmation) return;
+
+    localStorage.removeItem(STORAGE_KEYS.OWNER_PROFILE);
+    localStorage.removeItem(STORAGE_KEYS.INITIAL_SETUP_COMPLETED);
+    localStorage.removeItem(STORAGE_KEYS.OWNER_MIGRATION_COMPLETED);
+    await logout();
+    window.location.reload();
   };
 
   // Esporta backup demo
@@ -261,30 +339,78 @@ export const ImpostazioniPage: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const hasJsonExtension = file.name.toLowerCase().endsWith('.json');
+    const hasJsonMimeType =
+      file.type === '' || file.type === 'application/json' || file.type === 'text/json';
+    if (!hasJsonExtension || !hasJsonMimeType) {
+      showError('File Non Valido', 'Seleziona un file JSON valido con estensione .json.');
+      e.target.value = '';
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const content = event.target?.result as string;
-        const parsed = JSON.parse(content);
+        const content = event.target?.result;
+        if (typeof content !== 'string') {
+          showError('File Non Valido', 'Il contenuto del file non può essere letto come JSON.');
+          return;
+        }
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(content);
+        } catch {
+          showError('Errore File', 'Il file selezionato non contiene JSON valido.');
+          return;
+        }
 
         if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed) || Object.keys(parsed).length === 0) {
           showError('File Non Valido', 'Il file selezionato non contiene una struttura di backup valida.');
           return;
         }
 
+        const backupData = parsed as Record<string, unknown>;
+        const allKeys = Object.keys(backupData);
+        const recognizedKeys = allKeys.filter(isAppStorageKey);
+        const ignoredKeys = allKeys.filter((key) => !isAppStorageKey(key));
+        if (recognizedKeys.length === 0) {
+          showError(
+            'Backup Non Riconosciuto',
+            'Il file contiene soltanto chiavi estranee all’applicazione e non può essere importato.'
+          );
+          return;
+        }
+
+        const preview = [
+          `Numero totale di categorie: ${allKeys.length}`,
+          `Categorie riconosciute (${recognizedKeys.length}): ${recognizedKeys.join(', ')}`,
+          `Chiavi ignorate: ${ignoredKeys.length > 0 ? ignoredKeys.join(', ') : 'nessuna'}`,
+          '',
+          'Confermare l’importazione del backup?',
+        ].join('\n');
         const confirmed = window.confirm(
-          'Sei sicuro di voler importare questo backup? Tutti i dati locali correnti verranno sovrascritti con i dati del file selezionato.'
+          preview
         );
         if (!confirmed) return;
 
-        importAppLocalStorage(parsed);
+        importAppLocalStorage(backupData);
         showSuccess('Backup Importato', 'Dati ripristinati con successo dal file di backup. Ricaricamento in corso...');
         setTimeout(() => {
           window.location.reload();
         }, 800);
       } catch (err) {
         console.error(err);
-        showError('Errore File', 'Impossibile leggere il file JSON. Assicurati che sia un file di backup valido.');
+        if (isQuotaExceededError(err)) {
+          showError(
+            'Spazio Insufficiente',
+            'Il backup supera lo spazio disponibile. I dati precedenti sono stati ripristinati automaticamente.'
+          );
+        } else {
+          showError(
+            'Importazione Fallita',
+            'Il backup non è stato importato. I dati precedenti sono stati ripristinati automaticamente.'
+          );
+        }
       }
     };
     reader.onerror = () => {
@@ -310,7 +436,7 @@ export const ImpostazioniPage: React.FC = () => {
     { id: 'fuso_orario', label: '5. Fuso Orario', icon: <Clock className="w-4 h-4 text-blue-400" />, category: 'Generale' },
     { id: 'formato_data', label: '6. Formato Data', icon: <Calendar className="w-4 h-4 text-amber-400" />, category: 'Generale' },
 
-    { id: 'pacchetti', label: '7. Pacchetti Offered', icon: <Package className="w-4 h-4 text-purple-400" />, category: 'Listini & Tag' },
+    { id: 'pacchetti', label: '7. Pacchetti disponibili', icon: <Package className="w-4 h-4 text-purple-400" />, category: 'Listini & Tag' },
     { id: 'metodi_pagamento', label: '8. Metodi di Pagamento', icon: <CreditCard className="w-4 h-4 text-emerald-400" />, category: 'Listini & Tag' },
     { id: 'categorie_attivita', label: '9. Categorie Attività', icon: <Layers className="w-4 h-4 text-indigo-400" />, category: 'Listini & Tag' },
     { id: 'etichette', label: '10. Etichette & Tag Atleti', icon: <Tag className="w-4 h-4 text-amber-400" />, category: 'Listini & Tag' },
@@ -357,7 +483,7 @@ export const ImpostazioniPage: React.FC = () => {
             title="Ripristina valori di fabbrica"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Ripristina Definiti</span>
+            <span>Ripristina predefiniti</span>
           </button>
         </div>
       </div>
@@ -1335,6 +1461,47 @@ export const ImpostazioniPage: React.FC = () => {
                   Gestisci il ripristino dei dati demo iniziali o effettua il backup e l'importazione dei dati salvati nel browser.
                 </p>
               </div>
+
+              <form onSubmit={handleSaveOwnerProfile} className="p-5 bg-zinc-950 border border-amber-500/25 rounded-2xl space-y-4">
+                <div>
+                  <h4 className="text-sm font-black text-amber-400 uppercase tracking-wider">
+                    Profilo proprietario
+                  </h4>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Questi dati identificano il proprietario locale della demo.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="text-xs text-zinc-400 space-y-1">
+                    <span>Nome *</span>
+                    <input value={ownerFirstName} onChange={(event) => setOwnerFirstName(event.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-zinc-100 focus:outline-none focus:border-amber-500" />
+                  </label>
+                  <label className="text-xs text-zinc-400 space-y-1">
+                    <span>Cognome *</span>
+                    <input value={ownerLastName} onChange={(event) => setOwnerLastName(event.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-zinc-100 focus:outline-none focus:border-amber-500" />
+                  </label>
+                  <label className="text-xs text-zinc-400 space-y-1">
+                    <span>Email</span>
+                    <input type="email" value={ownerEmail} onChange={(event) => setOwnerEmail(event.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-zinc-100 focus:outline-none focus:border-amber-500" />
+                  </label>
+                  <label className="text-xs text-zinc-400 space-y-1">
+                    <span>Organizzazione</span>
+                    <input value={ownerOrganization} placeholder={DEFAULT_ORGANIZATION_NAME} onChange={(event) => setOwnerOrganization(event.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-zinc-100 focus:outline-none focus:border-amber-500" />
+                  </label>
+                </div>
+                <div className="text-xs text-zinc-400">
+                  Ruolo: <strong className="text-amber-400">Proprietario</strong>
+                </div>
+                {ownerProfileError && <p className="text-xs text-red-400">{ownerProfileError}</p>}
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button type="submit" className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold rounded-xl text-xs transition-all">
+                    SALVA PROFILO PROPRIETARIO
+                  </button>
+                  <button type="button" onClick={() => void handleRemoveOwnerConfiguration()} className="px-4 py-2.5 bg-red-950/50 hover:bg-red-900/60 border border-red-500/40 text-red-300 font-bold rounded-xl text-xs transition-all">
+                    RIMUOVI CONFIGURAZIONE PROPRIETARIO
+                  </button>
+                </div>
+              </form>
 
               {/* Informative Banner */}
               <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-3 text-xs text-amber-200">

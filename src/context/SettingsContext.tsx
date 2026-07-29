@@ -11,6 +11,8 @@ import {
 } from '../types';
 import { useToast } from './ToastContext';
 import { STORAGE_KEYS } from '../config/storageKeys';
+import { getOwnerDisplayName } from '../lib/ownerProfile';
+import { useAuth } from './AuthContext';
 
 interface SettingsContextType {
   settings: OrganizationSettings;
@@ -153,7 +155,7 @@ const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
   {
     id: 'log-1',
     timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
-    userName: 'Salvatore Carotenuto',
+    userName: getOwnerDisplayName(),
     userRole: 'proprietario',
     action: 'Inizializzazione Impostazioni',
     details: 'Configurazione iniziale parametri dell\'organizzazione Doctor Strength S.r.l.',
@@ -169,7 +171,7 @@ const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
   {
     id: 'log-3',
     timestamp: new Date(Date.now() - 3600000 * 48).toISOString(),
-    userName: 'Salvatore Carotenuto',
+    userName: getOwnerDisplayName(),
     userRole: 'proprietario',
     action: 'Modifica Colori Branding',
     details: 'Impostato Colore Principale (#f59e0b) e Colore Secondario (#3b82f6)',
@@ -179,6 +181,7 @@ const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
   const [settings, setSettings] = useState<OrganizationSettings>(() => {
     try {
       const stored = localStorage.getItem(SETTINGS_STORAGE_KEY);
@@ -200,7 +203,12 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } catch (e) {
       console.error('Failed to load audit logs from storage:', e);
     }
-    return INITIAL_AUDIT_LOGS;
+    const ownerFullName = getOwnerDisplayName();
+    return INITIAL_AUDIT_LOGS.map((entry) =>
+      entry.userRole === 'proprietario'
+        ? { ...entry, userName: ownerFullName }
+        : entry
+    );
   });
 
   const { showSuccess, showInfo } = useToast();
@@ -230,7 +238,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const newEntry: AuditLogEntry = {
       id: `log-${Date.now()}`,
       timestamp: new Date().toISOString(),
-      userName: 'Salvatore Carotenuto (Proprietario)',
+      userName: user?.fullName || 'Proprietario',
       userRole: 'proprietario',
       action,
       details,

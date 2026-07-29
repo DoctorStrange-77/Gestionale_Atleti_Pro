@@ -4,6 +4,7 @@ import { RenewalStatus, AthletePaymentStatus } from '../../types';
 import { useRenewals } from '../../context/RenewalsContext';
 import { useAthletes } from '../../context/AthletesContext';
 import { usePackages } from '../../context/PackagesContext';
+import { useAuth } from '../../context/AuthContext';
 
 interface NewRenewalModalProps {
   isOpen: boolean;
@@ -14,14 +15,15 @@ export const NewRenewalModal: React.FC<NewRenewalModalProps> = ({ isOpen, onClos
   const { addRenewal } = useRenewals();
   const { athletes } = useAthletes();
   const { packages } = usePackages();
+  const { user } = useAuth();
 
   const [selectedAthleteId, setSelectedAthleteId] = useState<string>('');
   const [packageName, setPackageName] = useState<string>('');
   const [price, setPrice] = useState<number>(350);
-  const [coachName, setCoachName] = useState<string>('Salvatore Carotenuto');
+  const [coachName, setCoachName] = useState<string>(user?.fullName || 'Proprietario');
   const [endDate, setEndDate] = useState<string>('');
   const [status, setStatus] = useState<RenewalStatus>('da contattare');
-  const [responsibleName, setResponsibleName] = useState<string>('Salvatore Carotenuto');
+  const [responsibleName, setResponsibleName] = useState<string>(user?.fullName || 'Proprietario');
   const [nextAction, setNextAction] = useState<string>('Chiamata di contatto per proposta rinnovo');
   const [notes, setNotes] = useState<string>('');
 

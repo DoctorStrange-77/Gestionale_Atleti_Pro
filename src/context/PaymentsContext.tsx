@@ -295,6 +295,36 @@ export const PaymentsProvider: React.FC<{ children: ReactNode }> = ({ children }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Recalculate suspended installments as soon as the nearest pause expires,
+  // even when the application remains open across the end of the pause.
+  useEffect(() => {
+    const now = Date.now();
+    const resumeTimes = payments
+      .filter((payment) => payment.suspendedUntil)
+      .map((payment) => new Date(`${payment.suspendedUntil}T23:59:59.999`).getTime())
+      .filter((resumeAt) => Number.isFinite(resumeAt) && resumeAt > now);
+    if (resumeTimes.length === 0) return;
+
+    const nextResumeAt = Math.min(...resumeTimes);
+    const maxTimeout = 2_147_000_000;
+    let timer: ReturnType<typeof setTimeout>;
+    const scheduleRecalculation = () => {
+      const remaining = nextResumeAt - Date.now();
+      if (remaining > maxTimeout) {
+        timer = setTimeout(scheduleRecalculation, maxTimeout);
+        return;
+      }
+      timer = setTimeout(() => {
+        void triggerSystemStatusRecalculation('Motore di Calcolo Fine Sospensione');
+      }, Math.max(0, remaining));
+    };
+    scheduleRecalculation();
+
+    return () => clearTimeout(timer);
+    // The timer must be rescheduled only when the payment suspension dates change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payments]);
+
   const openQuickRegisterModal = (initialData?: QuickRegisterData) => {
     setQuickRegisterData(initialData || null);
     setIsQuickRegisterOpen(true);
@@ -367,6 +397,7 @@ export const PaymentsProvider: React.FC<{ children: ReactNode }> = ({ children }
     const dateStr = now.toISOString().split('T')[0];
     const importoPrevisto = Number(data.importoPrevisto) || 0;
     const importoPagato = Number(data.importoPagato) || 0;
+    const importoRimborsato = Math.max(0, Number(data.importoRimborsato) || 0);
     const importoResiduo = Math.max(0, importoPrevisto - importoPagato);
 
     let calculatedStatus: PaymentStatus = data.stato;
@@ -394,8 +425,11 @@ export const PaymentsProvider: React.FC<{ children: ReactNode }> = ({ children }
       abbonamentoNome: data.abbonamentoNome,
       importoPrevisto,
       importoPagato,
+      importoRimborsato,
       importoResiduo,
       dataDiScadenza: data.dataDiScadenza || dateStr,
+      suspendedFrom: data.suspendedFrom,
+      suspendedUntil: data.suspendedUntil,
       dataDelPagamento: data.dataDelPagamento || (importoPagato > 0 ? dateStr : undefined),
       numeroDellaRata: data.numeroDellaRata || 'Quota Unica',
       metodoDiPagamento: data.metodoDiPagamento || 'contanti',
@@ -411,10 +445,10 @@ export const PaymentsProvider: React.FC<{ children: ReactNode }> = ({ children }
     };
 
     const valorePrecStr = existingPayment
-      ? `Previsto: €${existingPayment.importoPrevisto.toFixed(2)} | Pagato: €${existingPayment.importoPagato.toFixed(2)} | Residuo: €${existingPayment.importoResiduo.toFixed(2)} | Stato: ${existingPayment.stato}`
+      ? `Previsto: €${existingPayment.importoPrevisto.toFixed(2)} | Pagato: €${existingPayment.importoPagato.toFixed(2)} | Rimborsato: €${(existingPayment.importoRimborsato || 0).toFixed(2)} | Residuo: €${existingPayment.importoResiduo.toFixed(2)} | Stato: ${existingPayment.stato} | Scadenza: ${existingPayment.dataDiScadenza} | Sospensione: ${existingPayment.suspendedFrom || 'no'} → ${existingPayment.suspendedUntil || 'no'}`
       : 'Nessun registro precedente (Nuovo inserimento)';
 
-    const nuovoValoreStr = `Previsto: €${recordToSave.importoPrevisto.toFixed(2)} | Pagato: €${recordToSave.importoPagato.toFixed(2)} | Residuo: €${recordToSave.importoResiduo.toFixed(2)} | Stato: ${recordToSave.stato}`;
+    const nuovoValoreStr = `Previsto: €${recordToSave.importoPrevisto.toFixed(2)} | Pagato: €${recordToSave.importoPagato.toFixed(2)} | Rimborsato: €${(recordToSave.importoRimborsato || 0).toFixed(2)} | Residuo: €${recordToSave.importoResiduo.toFixed(2)} | Stato: ${recordToSave.stato} | Scadenza: ${recordToSave.dataDiScadenza} | Sospensione: ${recordToSave.suspendedFrom || 'no'} → ${recordToSave.suspendedUntil || 'no'}`;
 
     const azione = isEdit ? 'Modifica Registrazione Economica' : 'Registrazione Nuovo Pagamento';
 

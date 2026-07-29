@@ -18,6 +18,9 @@ export const STORAGE_KEYS = {
   AUDIT_LOGS: 'builder_athlete_audit_logs_v1',
   SAVED_REPORTS: 'builder_athlete_saved_reports_v1',
   EXTERNAL_INVOICES: 'builder_athlete_external_invoices_v1',
+  OWNER_PROFILE: 'builder_athlete_owner_profile',
+  INITIAL_SETUP_COMPLETED: 'builder_athlete_initial_setup_completed',
+  OWNER_MIGRATION_COMPLETED: 'builder_athlete_owner_migration_completed',
 } as const;
 
 // Helper sub-key functions for athlete details
@@ -45,7 +48,7 @@ export const APP_STORAGE_PREFIXES = [
  * Checks whether a given localStorage key belongs exclusively to this application.
  */
 export function isAppStorageKey(key: string): boolean {
-  if (Object.values(STORAGE_KEYS).includes(key as any)) {
+  if ((Object.values(STORAGE_KEYS) as readonly string[]).includes(key)) {
     return true;
   }
   return APP_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix));
@@ -79,9 +82,9 @@ export function clearAppLocalStorage(): void {
 /**
  * Exports all local application data as a JSON object.
  */
-export function exportAppLocalStorage(): Record<string, any> {
+export function exportAppLocalStorage(): Record<string, unknown> {
   const appKeys = getAllAppStorageKeys();
-  const exportData: Record<string, any> = {};
+  const exportData: Record<string, unknown> = {};
 
   appKeys.forEach((key) => {
     const rawVal = localStorage.getItem(key);
@@ -98,17 +101,61 @@ export function exportAppLocalStorage(): Record<string, any> {
 }
 
 /**
- * Imports a JSON backup, overwriting ONLY application-owned localStorage keys.
+ * Imports a validated backup transactionally. If a write fails, the previous
+ * application data is restored before the error is propagated.
  */
-export function importAppLocalStorage(data: Record<string, any>): void {
-  // 1. Remove existing app keys
-  clearAppLocalStorage();
+export function importAppLocalStorage(data: Record<string, unknown>): void {
+  const recognizedEntries = Object.entries(data).filter(([key]) => isAppStorageKey(key));
+  if (recognizedEntries.length === 0) {
+    throw new Error('Il backup non contiene chiavi appartenenti all’applicazione.');
+  }
 
-  // 2. Set new data for valid app keys
-  Object.entries(data).forEach(([key, val]) => {
-    if (isAppStorageKey(key)) {
-      const stringified = typeof val === 'string' ? val : JSON.stringify(val);
-      localStorage.setItem(key, stringified);
+  const temporaryBackup = exportAppLocalStorage();
+  const writeEntries = (entries: [string, unknown][]) => {
+    entries.forEach(([key, value]) => {
+      const serialized = typeof value === 'string' ? value : JSON.stringify(value);
+      if (serialized === undefined) {
+        throw new Error(`Valore non serializzabile per la chiave ${key}.`);
+      }
+      localStorage.setItem(key, serialized);
+    });
+  };
+
+  clearAppLocalStorage();
+  try {
+    writeEntries(recognizedEntries);
+  } catch (importError) {
+    clearAppLocalStorage();
+    try {
+      writeEntries(Object.entries(temporaryBackup));
+    } catch (rollbackError) {
+      console.error('Ripristino automatico del backup temporaneo fallito:', rollbackError);
     }
-  });
+    throw importError;
+  }
+}
+
+/**
+ * Resets demo entities while preserving the first-run owner configuration.
+ */
+export function clearAppDemoData(): void {
+  const preservedKeys = new Set<string>([
+    STORAGE_KEYS.OWNER_PROFILE,
+    STORAGE_KEYS.INITIAL_SETUP_COMPLETED,
+    STORAGE_KEYS.OWNER_MIGRATION_COMPLETED,
+  ]);
+  getAllAppStorageKeys()
+    .filter((key) => !preservedKeys.has(key))
+    .forEach((key) => localStorage.removeItem(key));
+}
+
+export function isQuotaExceededError(error: unknown): boolean {
+  const errorName =
+    typeof error === 'object' && error !== null && 'name' in error
+      ? String(error.name)
+      : '';
+  return (
+    errorName === 'QuotaExceededError' ||
+    errorName === 'NS_ERROR_DOM_QUOTA_REACHED'
+  );
 }

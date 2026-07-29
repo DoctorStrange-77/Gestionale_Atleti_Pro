@@ -97,7 +97,7 @@ npm run build
 In qualsiasi momento è possibile ripristinare i dati dimostrativi iniziali dell'applicazione:
 
 1. Accedere alla sezione **Impostazioni** dal menu principale.
-2. Selezionare la scheda **17. Gestione Dati Dimostrativi e Backup** (oppure fare clic su *Ripristina Dati* dal banner della modalità demo).
+2. Selezionare la scheda **17. Esportazione Dati & Backup**.
 3. Cliccare sul pulsante **Ripristina dati demo** e confermare l'operazione.
 
 L'operazione eliminerà unicamente le chiavi salvate nel `localStorage` relative a questo progetto (`builder_athlete_*`), ricaricando lo stato iniziale di esempio senza intaccare altri dati del browser.

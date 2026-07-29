@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Database, ShieldCheck, AlertCircle, Key, CheckCircle, ExternalLink } from 'lucide-react';
+import { Database, ShieldCheck, AlertCircle, Key, ExternalLink } from 'lucide-react';
 import { isSupabaseConfigured } from '../../lib/supabase';
 import { Modal } from './Modal';
 
@@ -42,12 +42,12 @@ export const SupabaseNotice: React.FC = () => {
           {isSupabaseConfigured ? (
             <div className="p-4 bg-emerald-950/30 border border-emerald-500/30 rounded-xl space-y-2">
               <div className="flex items-center gap-2 text-emerald-400 font-bold">
-                <CheckCircle className="w-5 h-5 shrink-0" />
-                <span>Supabase Collegato Correttamente</span>
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                <span>Configurazione Supabase rilevata — integrazione non utilizzata dalla demo</span>
               </div>
               <p className="text-xs text-zinc-300 leading-relaxed">
                 Le variabili d'ambiente <code className="text-amber-400 bg-zinc-950 px-1 py-0.5 rounded">VITE_SUPABASE_URL</code> e{' '}
-                <code className="text-amber-400 bg-zinc-950 px-1 py-0.5 rounded">VITE_SUPABASE_ANON_KEY</code> sono state rilevate e sono attive.
+                <code className="text-amber-400 bg-zinc-950 px-1 py-0.5 rounded">VITE_SUPABASE_ANON_KEY</code> sono state rilevate, ma questo non verifica una connessione remota.
               </p>
             </div>
           ) : (

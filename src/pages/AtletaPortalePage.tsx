@@ -1,11 +1,11 @@
 import React from 'react';
-import { User, Dumbbell, Calendar, CreditCard, Award, FileText, CheckCircle2, Clock, ChevronRight, AlertCircle, Info } from 'lucide-react';
+import { Dumbbell, Calendar, CreditCard, Award, FileText, ChevronRight, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAthletes } from '../context/AthletesContext';
 import { useSubscriptions } from '../context/SubscriptionsContext';
 import { usePayments } from '../context/PaymentsContext';
 import { useDocuments } from '../context/DocumentsContext';
-import { useCalendar } from '../context/CalendarContext';
+import { useCalendarEvents } from '../context/CalendarContext';
 
 export const AtletaPortalePage: React.FC = () => {
   const { user } = useAuth();
@@ -13,7 +13,7 @@ export const AtletaPortalePage: React.FC = () => {
   const { subscriptions } = useSubscriptions();
   const { payments } = usePayments();
   const { documents } = useDocuments();
-  const { customEvents } = useCalendar();
+  const { customEvents } = useCalendarEvents();
 
   // Try matching athlete from logged-in user or pick the first demo athlete
   const currentAthlete = athletes.find(a => a.email.toLowerCase() === user?.email.toLowerCase()) || athletes[0];
@@ -21,16 +21,41 @@ export const AtletaPortalePage: React.FC = () => {
   const athleteSubs = currentAthlete ? subscriptions.filter(s => s.athleteId === currentAthlete.id) : [];
   const activeSub = athleteSubs.find(s => s.status === 'attivo') || athleteSubs[0];
 
-  const athletePayments = currentAthlete ? payments.filter(p => p.athleteId === currentAthlete.id) : [];
-  const pendingPayment = athletePayments.find(p => p.status === 'da_saldare' || p.status === 'parziale');
+  const unpaidPaymentStatuses = new Set([
+    'programmato',
+    'in scadenza',
+    'da pagare',
+    'pagato parzialmente',
+    'scaduto',
+  ]);
+  const athletePayments = currentAthlete ? payments.filter(p => p.atletaId === currentAthlete.id) : [];
+  const pendingPayment = athletePayments
+    .filter(p => unpaidPaymentStatuses.has(p.stato))
+    .sort((a, b) => a.dataDiScadenza.localeCompare(b.dataDiScadenza))[0];
+  const pendingPaymentAmount = pendingPayment
+    ? pendingPayment.importoResiduo > 0
+      ? pendingPayment.importoResiduo
+      : pendingPayment.importoPrevisto
+    : undefined;
 
   const athleteDocs = currentAthlete ? documents.filter(d => d.athleteId === currentAthlete.id) : [];
-  const medicalDoc = athleteDocs.find(d => d.category === 'certificato medico');
 
+  const now = new Date();
   const athleteEvents = currentAthlete
-    ? customEvents.filter(e => e.athleteId === currentAthlete.id || e.athleteIds?.includes(currentAthlete.id))
+    ? customEvents.filter(e => e.athleteId === currentAthlete.id)
     : customEvents;
-  const nextEvent = athleteEvents[0];
+  const nextEvent = athleteEvents
+    .map(event => ({
+      event,
+      startsAt: new Date(`${event.date}T${event.startTime || '23:59'}`),
+    }))
+    .filter(({ startsAt }) => !Number.isNaN(startsAt.getTime()) && startsAt >= now)
+    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())[0]?.event;
+
+  const medicalCertificateExpiry = currentAthlete?.medicalCertificateExpiry;
+  const medicalCertificateIsValid = medicalCertificateExpiry
+    ? new Date(`${medicalCertificateExpiry}T23:59:59`).getTime() >= now.getTime()
+    : false;
 
   return (
     <div className="space-y-6">
@@ -104,8 +129,15 @@ export const AtletaPortalePage: React.FC = () => {
             {nextEvent ? `${nextEvent.title} (${nextEvent.date})` : 'Domani • 15:30'}
           </p>
           <p className="text-[10px] text-zinc-400">
-            {nextEvent ? nextEvent.time || 'Sessione programmata' : 'Personal Training con Coach'}
+            {nextEvent
+              ? [nextEvent.startTime, nextEvent.endTime].filter(Boolean).join(' - ') || 'Sessione programmata'
+              : 'Personal Training con Coach'}
           </p>
+          {!nextEvent && (
+            <span className="text-[9px] bg-zinc-800 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/20">
+              Dato dimostrativo
+            </span>
+          )}
         </div>
 
         {/* Prossima Rata (Dynamic from PaymentsContext if available) */}
@@ -115,11 +147,20 @@ export const AtletaPortalePage: React.FC = () => {
             <CreditCard className="w-4 h-4 text-emerald-400" />
           </div>
           <p className="text-xl font-bold text-white">
-            € {pendingPayment ? pendingPayment.amount.toFixed(2) : (activeSub ? activeSub.price.toFixed(2) : '150,00')}
+            € {pendingPaymentAmount !== undefined
+              ? pendingPaymentAmount.toFixed(2)
+              : activeSub
+                ? (activeSub.agreedPrice || activeSub.listPrice).toFixed(2)
+                : '150,00'}
           </p>
           <p className="text-[10px] text-amber-400">
-            Scadenza: {pendingPayment ? pendingPayment.dueDate : (activeSub ? activeSub.endDate : '15/08/2026')}
+            Scadenza: {pendingPayment ? pendingPayment.dataDiScadenza : (activeSub ? activeSub.endDate : '15/08/2026')}
           </p>
+          {!pendingPayment && !activeSub && (
+            <span className="text-[9px] bg-zinc-800 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/20">
+              Dato dimostrativo
+            </span>
+          )}
         </div>
 
         {/* Certificato Medico (Dynamic from Athlete / Documents if available) */}
@@ -128,12 +169,17 @@ export const AtletaPortalePage: React.FC = () => {
             <span>Certificato Medico</span>
             <FileText className="w-4 h-4 text-blue-400" />
           </div>
-          <p className="text-sm font-bold text-emerald-400">
-            {currentAthlete ? (currentAthlete.medicalCertificateStatus === 'valido' ? 'Valido' : 'In Scadenza / Mancante') : 'Valido'}
+          <p className={`text-sm font-bold ${medicalCertificateIsValid ? 'text-emerald-400' : 'text-amber-400'}`}>
+            {currentAthlete ? (medicalCertificateIsValid ? 'Valido' : 'Scaduto / Mancante') : 'Valido'}
           </p>
           <p className="text-[10px] text-zinc-400">
-            Scade il: {currentAthlete?.medicalCertificateExpiry || '30/11/2026'}
+            Scade il: {medicalCertificateExpiry || '30/11/2026'}
           </p>
+          {!currentAthlete && (
+            <span className="text-[9px] bg-zinc-800 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/20">
+              Dato dimostrativo
+            </span>
+          )}
         </div>
       </div>
 

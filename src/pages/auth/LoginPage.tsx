@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
-  const { login, isSupabaseConnected, isLoading } = useAuth();
+  const { login, isSupabaseConnected, isLoading, ownerProfile } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -44,7 +44,7 @@ export const LoginPage: React.FC = () => {
 
   const handleDemoLogin = async () => {
     setIsSubmitting(true);
-    await login('coach@doctorstrength.it', 'demo123');
+    await login(ownerProfile.email || 'owner.demo@example.com', 'demo123');
     setIsSubmitting(false);
   };
 
@@ -108,7 +108,7 @@ export const LoginPage: React.FC = () => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="coach@doctorstrength.it"
+                placeholder={ownerProfile.email || 'owner.demo@example.com'}
                 className="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-zinc-100 text-xs focus:outline-none focus:border-amber-500/60 focus:ring-1 focus:ring-amber-500/60 transition-all placeholder:text-zinc-600"
               />
             </div>

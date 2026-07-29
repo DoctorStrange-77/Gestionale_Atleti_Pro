@@ -3,10 +3,9 @@ import {
   AthleteSubscription,
   PaymentRecord,
   AthleteRenewal,
-  Task,
-  DocumentAlert,
 } from '../types';
-import { isValidPayment } from './dashboardCalculations';
+import { getNetCollectedAmount, isValidPayment } from './dashboardCalculations';
+import { isPaymentSuspended } from '../lib/statusEngine';
 
 export interface MonthlyRevenueData {
   month: string;
@@ -51,13 +50,16 @@ const COLORS = [
 
 export function buildMonthlyTrends(
   athletes: Athlete[],
-  subscriptions: AthleteSubscription[],
+  _subscriptions: AthleteSubscription[],
   payments: PaymentRecord[]
 ): MonthlyRevenueData[] {
   const monthsData: MonthlyRevenueData[] = [];
   const currentYear = new Date().getFullYear();
+  const todayStr = new Date().toISOString().split('T')[0];
 
-  const validPayments = payments.filter(isValidPayment);
+  const validPayments = payments.filter(
+    (payment) => isValidPayment(payment) && !isPaymentSuspended(payment, todayStr)
+  );
 
   for (let monthIdx = 0; monthIdx < 12; monthIdx++) {
     const monthNum = String(monthIdx + 1).padStart(2, '0');
@@ -67,7 +69,7 @@ export function buildMonthlyTrends(
     // Reali: sum of importoPagato where payment date matches monthKey
     const reali = validPayments
       .filter((p) => (p.dataDelPagamento || p.createdAt || '').startsWith(monthKey))
-      .reduce((acc, p) => acc + (p.importoPagato || 0), 0);
+      .reduce((acc, p) => acc + getNetCollectedAmount(p), 0);
 
     // Previste: sum of importoPrevisto where due date matches monthKey
     const previste = validPayments
@@ -144,7 +146,7 @@ export function buildCoachDistribution(athletes: Athlete[]): CoachDistributionDa
   const keys = Object.keys(coachMap);
   if (keys.length === 0) {
     return [
-      { coachName: 'Salvatore Carotenuto', count: 12 },
+      { coachName: 'Proprietario Demo', count: 12 },
       { coachName: 'Coach Roberto', count: 8 },
       { coachName: 'Coach Elena', count: 5 },
     ];
@@ -181,8 +183,10 @@ export function buildRenewalStatusDistribution(renewals: AthleteRenewal[]): Rene
 }
 
 export function buildPaymentPunctuality(payments: PaymentRecord[]): PaymentPunctualityData[] {
-  const valid = payments.filter(isValidPayment);
   const todayStr = new Date().toISOString().split('T')[0];
+  const valid = payments.filter(
+    (payment) => isValidPayment(payment) && !isPaymentSuspended(payment, todayStr)
+  );
 
   let puntuali = 0;
   let inRitardo = 0;

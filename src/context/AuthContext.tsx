@@ -1,7 +1,14 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { UserProfile, UserRole, Organization, OrganizationMember } from '../types';
+import { LocalOwnerProfile, UserProfile, UserRole, Organization, OrganizationMember } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { useToast } from './ToastContext';
+import {
+  DEFAULT_ORGANIZATION_NAME,
+  DEFAULT_OWNER_EMAIL,
+  LOCAL_OWNER_ID,
+  readOwnerProfile,
+  saveOwnerProfile,
+} from '../lib/ownerProfile';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -22,17 +29,18 @@ interface AuthContextType {
   updateMemberRole: (memberId: string, newRole: UserRole) => void;
   toggleMemberFinancials: (memberId: string, canView: boolean) => void;
   transferOwnership: (newOwnerId: string) => void;
+  ownerProfile: LocalOwnerProfile;
+  updateOwnerProfile: (profile: LocalOwnerProfile) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Initial Demo Organizations
-const DEMO_ORGANIZATIONS: Organization[] = [
+const createDemoOrganizations = (owner: LocalOwnerProfile): Organization[] => [
   {
     id: 'org-doctor-strength',
-    name: 'Doctor Strength Performance Center',
+    name: owner.organizationName || DEFAULT_ORGANIZATION_NAME,
     slug: 'doctor-strength',
-    ownerId: 'demo-user-owner',
+    ownerId: LOCAL_OWNER_ID,
     vatNumber: 'IT01234567890',
     fiscalCode: '01234567890',
     createdAt: '2024-01-15T00:00:00.000Z',
@@ -45,7 +53,7 @@ const DEMO_ORGANIZATIONS: Organization[] = [
     id: 'org-apex-fitness',
     name: 'Apex Power & Conditioning Studio',
     slug: 'apex-fitness',
-    ownerId: 'demo-user-owner',
+    ownerId: LOCAL_OWNER_ID,
     vatNumber: 'IT09876543210',
     fiscalCode: '09876543210',
     createdAt: '2024-03-01T00:00:00.000Z',
@@ -56,14 +64,13 @@ const DEMO_ORGANIZATIONS: Organization[] = [
   },
 ];
 
-// Initial Demo Members
-const INITIAL_DEMO_MEMBERS: OrganizationMember[] = [
+const createInitialDemoMembers = (owner: LocalOwnerProfile): OrganizationMember[] => [
   {
     id: 'mem-1',
     organizationId: 'org-doctor-strength',
-    userId: 'demo-user-owner',
-    userEmail: 'salvatore.carotenuto77@gmail.com',
-    userFullName: 'Salvatore Carotenuto',
+    userId: LOCAL_OWNER_ID,
+    userEmail: owner.email || DEFAULT_OWNER_EMAIL,
+    userFullName: owner.fullName,
     roleCode: 'proprietario',
     canViewFinancials: true,
     status: 'active',
@@ -115,22 +122,33 @@ const INITIAL_DEMO_MEMBERS: OrganizationMember[] = [
   },
 ];
 
-// Initial Demo User
-const INITIAL_DEMO_USER: UserProfile = {
-  id: 'demo-user-owner',
-  email: 'salvatore.carotenuto77@gmail.com',
-  fullName: 'Salvatore Carotenuto',
+const createInitialDemoUser = (
+  owner: LocalOwnerProfile,
+  organizations: Organization[] = createDemoOrganizations(owner)
+): UserProfile => ({
+  id: LOCAL_OWNER_ID,
+  email: owner.email || DEFAULT_OWNER_EMAIL,
+  fullName: owner.fullName,
   role: 'proprietario',
   organizationId: 'org-doctor-strength',
-  organizationName: 'Doctor Strength Performance Center',
+  organizationName: owner.organizationName || DEFAULT_ORGANIZATION_NAME,
   canViewFinancials: true,
-  organizations: DEMO_ORGANIZATIONS,
-};
+  organizations,
+});
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<UserProfile | null>(INITIAL_DEMO_USER);
-  const [organizations, setOrganizations] = useState<Organization[]>(DEMO_ORGANIZATIONS);
-  const [members, setMembers] = useState<OrganizationMember[]>(INITIAL_DEMO_MEMBERS);
+  const [ownerProfile, setOwnerProfile] = useState<LocalOwnerProfile>(() => {
+    const storedOwner = readOwnerProfile();
+    if (!storedOwner) throw new Error('Configurazione proprietario non disponibile');
+    return storedOwner;
+  });
+  const [organizations, setOrganizations] = useState<Organization[]>(() =>
+    createDemoOrganizations(ownerProfile)
+  );
+  const [members, setMembers] = useState<OrganizationMember[]>(() =>
+    createInitialDemoMembers(ownerProfile)
+  );
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const { showSuccess, showError, showInfo } = useToast();
 
@@ -166,7 +184,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (userMemberships && userMemberships.length > 0) {
             const activeMem = userMemberships[0];
             const activeOrg = activeMem.organization;
-            const userOrgs: Organization[] = userMemberships.map((m: any) => ({
+            const userOrgs: Organization[] = userMemberships.map((m) => ({
               id: m.organization.id,
               name: m.organization.name,
               slug: m.organization.slug,
@@ -195,13 +213,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               fullName: session.user.user_metadata?.full_name || 'Utente',
               role: 'proprietario',
               organizationId: 'org-doctor-strength',
-              organizationName: 'Doctor Strength Performance Center',
+              organizationName: ownerProfile.organizationName || DEFAULT_ORGANIZATION_NAME,
               canViewFinancials: true,
-              organizations: DEMO_ORGANIZATIONS,
+              organizations,
             });
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Auth check error:', err);
       } finally {
         if (isMounted) setIsLoading(false);
@@ -387,8 +405,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!isSupabaseConfigured || !supabase) {
       setTimeout(() => {
         setUser({
-          ...INITIAL_DEMO_USER,
-          email: email || INITIAL_DEMO_USER.email,
+          ...createInitialDemoUser(ownerProfile, organizations),
+          email: email || ownerProfile.email || DEFAULT_OWNER_EMAIL,
         });
         setIsLoading(false);
         showInfo('Accesso Demo Effettuato', 'Accesso demo effettuato. Nessuna autenticazione reale è stata eseguita.');
@@ -408,21 +426,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser({
           id: data.user.id,
           email: data.user.email || email,
-          fullName: data.user.user_metadata?.full_name || 'Coach',
+          fullName: data.user.user_metadata?.full_name || ownerProfile.fullName,
           role: 'proprietario',
           organizationId: 'org-doctor-strength',
-          organizationName: 'Doctor Strength Performance Center',
+          organizationName: ownerProfile.organizationName || DEFAULT_ORGANIZATION_NAME,
           canViewFinancials: true,
-          organizations: DEMO_ORGANIZATIONS,
+          organizations,
         });
         showSuccess('Accesso effettuato con successo');
         setIsLoading(false);
         return true;
       }
       return false;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Login error:', err);
-      showError('Errore di accesso', err.message || 'Credenziali non valide');
+      showError(
+        'Errore di accesso',
+        err instanceof Error ? err.message : 'Credenziali non valide'
+      );
       setIsLoading(false);
       return false;
     }
@@ -456,10 +477,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) throw error;
       showInfo('Funzione Dimostrativa', 'Funzione dimostrativa: nessuna email è stata realmente inviata.');
       return true;
-    } catch (err: any) {
-      showError('Errore invio', err.message || 'Impossibile inviare l\'email');
+    } catch (err: unknown) {
+      showError(
+        'Errore invio',
+        err instanceof Error ? err.message : 'Impossibile inviare l\'email'
+      );
       return false;
     }
+  };
+
+  const updateOwnerProfile = (profile: LocalOwnerProfile) => {
+    saveOwnerProfile(profile);
+    setOwnerProfile(profile);
+    const organizationName = profile.organizationName || DEFAULT_ORGANIZATION_NAME;
+    setOrganizations((previous) =>
+      previous.map((organization) =>
+        organization.id === 'org-doctor-strength'
+          ? { ...organization, name: organizationName }
+          : organization
+      )
+    );
+    setMembers((previous) =>
+      previous.map((member) =>
+        member.userId === LOCAL_OWNER_ID
+          ? {
+              ...member,
+              userEmail: profile.email || DEFAULT_OWNER_EMAIL,
+              userFullName: profile.fullName,
+            }
+          : member
+      )
+    );
+    setUser((previous) =>
+      previous
+        ? {
+            ...previous,
+            email: profile.email || DEFAULT_OWNER_EMAIL,
+            fullName: profile.fullName,
+            organizationName,
+            organizations: previous.organizations?.map((organization) =>
+              organization.id === 'org-doctor-strength'
+                ? { ...organization, name: organizationName }
+                : organization
+            ),
+          }
+        : previous
+    );
   };
 
   return (
@@ -472,7 +535,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         logout,
         resetPassword,
-        organizationName: user?.organizationName || 'Doctor Strength Performance',
+        organizationName: user?.organizationName || ownerProfile.organizationName || DEFAULT_ORGANIZATION_NAME,
         organizations,
         members,
         switchOrganization,
@@ -483,6 +546,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateMemberRole,
         toggleMemberFinancials,
         transferOwnership,
+        ownerProfile,
+        updateOwnerProfile,
       }}
     >
       {children}

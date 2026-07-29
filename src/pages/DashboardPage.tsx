@@ -26,7 +26,6 @@ import {
   TrendingDown,
   CheckSquare,
   ShieldCheck,
-  Info,
   CalendarRange,
   HelpCircle,
 } from 'lucide-react';
@@ -486,8 +485,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             subtitle="Conversioni contratti arrivati a fine"
             icon={<RefreshCw className="w-5 h-5" />}
             colorTheme="amber"
-            formula="(Abbonamenti Rinnovati / Totale Abbonamenti Scaduti) × 100"
-            formulaDescription="Indica la percentuale di clienti che rinnovano l'abbonamento alla scadenza."
+            formula="(Rinnovi confermati o rinnovati nel periodo / Totale rinnovi nel periodo) × 100"
+            formulaDescription="Stima dimostrativa calcolata sui rinnovi aggiornati nel periodo selezionato."
             onClick={() => onNavigate('rinnovi')}
           />
 
@@ -499,8 +498,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             subtitle="Tasso di abbandono atleti"
             icon={<UserMinus className="w-5 h-5" />}
             colorTheme="red"
-            formula="(Atleti Persi / Totale Atleti Gestiti) × 100"
-            formulaDescription="Percentuale di abbandono del centro sportivo nel periodo analizzato."
+            formula="Uscite nel periodo / (Atleti attivi o sospesi + Uscite nel periodo) × 100"
+            formulaDescription="Valore dimostrativo stimato usando updatedAt come riferimento temporale per le uscite."
             onClick={() => onNavigate('report')}
           />
 
